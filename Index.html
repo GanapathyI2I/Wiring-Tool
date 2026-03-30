@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RPA Flow Wiring Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e2a;
+    --border: #242836;
+    --accent: #00e5ff;
+    --accent2: #7b61ff;
+    --green: #00e676;
+    --red: #ff4f4f;
+    --yellow: #ffd740;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-display: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px 60px; }
+
+  /* Header */
+  header {
+    padding: 36px 0 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 36px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  header p { font-size: 13px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
+
+  /* Steps indicator */
+  .steps {
+    display: flex;
+    gap: 0;
+    margin-bottom: 36px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .step {
+    flex: 1;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    transition: background 0.2s;
+    cursor: default;
+  }
+  .step:last-child { border-right: none; }
+  .step.active { background: var(--surface2); }
+  .step.done { background: var(--surface); }
+  .step-num {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s;
+  }
+  .step.active .step-num { background: var(--accent); color: #000; }
+  .step.done .step-num { background: var(--green); color: #000; }
+  .step-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .step.active .step-label { color: var(--text); }
+  .step.done .step-label { color: var(--green); }
+
+  /* Phase panels */
+  .phase { display: none; }
+  .phase.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .icon { font-size: 18px; }
+  .card-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; font-family: var(--font-mono); }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(0,229,255,0.04);
+  }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-zone h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .upload-zone p { font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+
+  /* File list */
+  .file-list { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .file-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .file-badge {
+    background: rgba(0,229,255,0.1);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    border: 1px solid rgba(0,229,255,0.2);
+    flex-shrink: 0;
+  }
+  .file-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .file-size { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+  .file-remove {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 16px; padding: 2px 6px;
+    border-radius: 4px; transition: color 0.15s, background 0.15s;
+  }
+  .file-remove:hover { color: var(--red); background: rgba(255,79,79,0.1); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 22px;
+    border-radius: 8px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    letter-spacing: 0.2px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-primary:hover { background: #33eaff; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,255,0.25); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-green:hover { background: #33eb8f; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,230,118,0.25); }
+
+  .btn-row { display: flex; gap: 12px; margin-top: 24px; align-items: center; }
+
+  /* Wiring section */
+  .page-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .page-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+  .page-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent2);
+    flex-shrink: 0;
+  }
+  .page-filename { font-size: 14px; font-weight: 700; flex: 1; font-family: var(--font-mono); color: var(--accent); }
+  .page-body { padding: 16px 18px; }
+
+  .mapping-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .mapping-row:last-child { margin-bottom: 0; }
+  .arrow { color: var(--accent); font-size: 18px; text-align: center; font-weight: 700; }
+
+  select, input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+  }
+  select:focus, input[type="text"]:focus { border-color: var(--accent); }
+
+  .add-mapping-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-family: var(--font-display);
+    cursor: pointer;
+    width: 100%;
+    margin-top: 10px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .add-mapping-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.04); }
+
+  .remove-mapping {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: 18px; padding: 4px;
+    border-radius: 4px; transition: color 0.15s;
+    flex-shrink: 0;
+  }
+  .remove-mapping:hover { color: var(--red); }
+
+  /* Output */
+  .output-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--green);
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    letter-spacing: 0.5px;
+  }
+  .tag-info { background: rgba(0,229,255,0.1); color: var(--accent); border: 1px solid rgba(0,229,255,0.2); }
+  .tag-success { background: rgba(0,230,118,0.1); color: var(--green); border: 1px solid rgba(0,230,118,0.2); }
+
+  .info-box {
+    background: rgba(0,229,255,0.05);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    margin-bottom: 16px;
+    line-height: 1.7;
+  }
+  .info-box strong { color: var(--accent); }
+
+  /* Summary */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .summary-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .summary-num { font-size: 32px; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+  .summary-label { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+  /* Flow diagram */
+  .flow-diagram {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  .flow-node {
+    background: var(--bg);
+    border: 1px solid var(--accent2);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--accent2);
+    font-weight: 600;
+  }
+  .flow-arrow { color: var(--accent); font-weight: 700; font-size: 18px; }
+
+  /* Download button pulse */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,230,118,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(0,230,118,0); }
+  }
+  .btn-green { animation: pulse-glow 2s infinite; }
+
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .label { font-size: 12px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 6px; }
+
+  .label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .selector-type-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .type-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .type-btn:first-child { border-right: 1px solid var(--border); }
+  .type-btn.active { background: var(--accent); color: #000; }
+  .type-btn:not(.active):hover { background: var(--surface2); color: var(--text); }
+
+  .xpath-hint {
+    font-size: 11px;
+    color: var(--yellow);
+    font-family: var(--font-mono);
+    margin-top: 5px;
+  }
+
+  .mapping-row-wrap {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .dropdown-toggle-row {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-label input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+  .toggle-label:hover { color: var(--accent); }
+
+  .dropdown-fields {
+    margin-top: 12px;
+    background: rgba(123,97,255,0.05);
+    border: 1px solid rgba(123,97,255,0.2);
+    border-radius: 8px;
+    padding: 14px;
+  }
+
+  .dropdown-info {
+    font-size: 12px;
+    color: var(--accent2);
+    font-family: var(--font-mono);
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+
+  .no-files-msg { text-align: center; padding: 20px; color: var(--muted); font-size: 13px; font-family: var(--font-mono); }
+
+  .mock-state-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+  }
+  .mock-state-badge.normal   { background: rgba(0,230,118,0.1);  color: var(--green);  border: 1px solid rgba(0,230,118,0.2); }
+  .mock-state-badge.hidden   { background: rgba(255,215,64,0.1);  color: var(--yellow); border: 1px solid rgba(255,215,64,0.2); }
+  .mock-state-badge.disabled { background: rgba(255,79,79,0.1);   color: var(--red);    border: 1px solid rgba(255,79,79,0.2); }
+  .mock-state-badge.notfound { background: rgba(255,79,79,0.1);   color: var(--red);    border: 1px solid rgba(255,79,79,0.2); }
+  .mock-state-badge.wrongtag { background: rgba(123,97,255,0.1);  color: var(--accent2);border: 1px solid rgba(123,97,255,0.2); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">⚡</div>
+    <div>
+      <h1>RPA Flow Wiring Tool</h1>
+      <p>Wire static HTML pages into a testable RPA flow</p>
+    </div>
+  </header>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step1">
+      <div class="step-num">1</div>
+      <div class="step-label">Upload Pages</div>
+    </div>
+    <div class="step" id="step2">
+      <div class="step-num">2</div>
+      <div class="step-label">Wire Buttons</div>
+    </div>
+    <div class="step" id="step3">
+      <div class="step-num">3</div>
+      <div class="step-label">Mock Elements</div>
+    </div>
+    <div class="step" id="step4">
+      <div class="step-num">4</div>
+      <div class="step-label">Generate & Download</div>
+    </div>
+  </div>
+
+  <!-- Phase 1: Upload -->
+  <div class="phase active" id="phase1">
+    <div class="card">
+      <div class="card-title"><span class="icon">📂</span> Upload Your Captured HTML Pages</div>
+      <div class="card-desc">Upload all HTML files you saved using SingleFile. You can upload multiple files at once.</div>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".html,.htm" multiple />
+        <div class="upload-icon">🗂️</div>
+        <h3>Drop HTML files here</h3>
+        <p>or click to browse · Supports multiple files</p>
+      </div>
+
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="goToWire" disabled onclick="goToPhase2()">
+        Next: Wire Buttons →
+      </button>
+      <span id="uploadCount" style="font-size:13px;color:var(--muted);font-family:var(--font-mono);">No files uploaded</span>
+    </div>
+  </div>
+
+  <!-- Phase 2: Wire -->
+  <div class="phase" id="phase2">
+    <div class="card">
+      <div class="card-title"><span class="icon">🔗</span> Wire Buttons to Pages</div>
+      <div class="card-desc">For each page, map which button/element click should navigate to which page.</div>
+
+      <div class="info-box">
+        💡 Choose <strong>CSS/ID</strong> or <strong>XPath</strong> for each button selector.<br>
+        CSS examples: <strong>#loginBtn</strong> &nbsp;|&nbsp; <strong>button[type="submit"]</strong> &nbsp;|&nbsp; <strong>.btn-login</strong><br>
+        XPath examples: <strong>//button[@id='loginBtn']</strong> &nbsp;|&nbsp; <strong>//button[text()='Login']</strong> &nbsp;|&nbsp; <strong>//input[@value='Submit']</strong>
+      </div>
+
+      <div id="wiringBlocks"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goToPhase1()">← Back</button>
+      <button class="btn btn-primary" onclick="goToPhase3()">Next: Mock Elements →</button>
+    </div>
+  </div>
+
+  <!-- Phase 3: Mock Elements -->
+  <div class="phase" id="phase3">
+    <div class="card">
+      <div class="card-title"><span class="icon">🎭</span> Mock Element States</div>
+      <div class="card-desc">Define which elements to mock and what state they should be in. A floating control panel will be injected into each page so you can switch states while your RPA script is running.</div>
+
+      <div class="info-box">
+        💡 For each page, add the elements your RPA script validates.<br>
+        During testing: RPA hits <strong>Sleep</strong> → you click the state in the floating panel → RPA resumes → error code is thrown ✅
+      </div>
+
+      <div id="mockBlocks"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goToPhase2()">← Back</button>
+      <button class="btn btn-primary" onclick="goToPhase4()">Generate Files →</button>
+    </div>
+  </div>
+
+  <!-- Phase 4: Generate -->
+  <div class="phase" id="phase4">
+    <div class="card">
+      <div class="card-title"><span class="icon">✅</span> Your Flow is Ready!</div>
+      <div class="card-desc">Files have been wired and mocked. Download the package and follow the steps below.</div>
+
+      <div class="summary-grid" id="summaryGrid"></div>
+
+      <div class="card-title" style="margin-bottom:10px;"><span class="icon">🔀</span> Flow Diagram</div>
+      <div class="flow-diagram" id="flowDiagram"></div>
+
+      <div class="divider"></div>
+
+      <div class="card-title" style="margin-bottom:10px;"><span class="icon">📋</span> Generated Wiring Preview</div>
+      <div class="output-box" id="outputBox"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="downloadAll()">⬇ Download Wired HTML Files</button>
+        <button class="btn btn-ghost" onclick="goToPhase3()">← Back to Mock</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="icon">🚀</span> How to Run</div>
+      <div class="card-desc">Follow these steps after downloading:</div>
+      <div class="info-box" id="runInstructions"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+  let uploadedFiles = {};
+  let mappings = {};
+  let mocks = {}; // filename -> [{label, selector, selectorType, errorCode}]
+
+  // ─── Upload ───────────────────────────────────────────────────────────
+  const fileInput = document.getElementById('fileInput');
+  const uploadZone = document.getElementById('uploadZone');
+
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('dragover');
+    handleFiles(Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.html?$/i)));
+  });
+  fileInput.addEventListener('change', () => handleFiles(Array.from(fileInput.files)));
+
+  function handleFiles(files) {
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        uploadedFiles[file.name] = { file, content: e.target.result };
+        renderFileList();
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function renderFileList() {
+    const list = document.getElementById('fileList');
+    const names = Object.keys(uploadedFiles);
+    if (names.length === 0) { list.innerHTML = ''; return; }
+    list.innerHTML = names.map((name, i) => `
+      <div class="file-item">
+        <span class="file-badge">HTML</span>
+        <span class="file-name">${name}</span>
+        <span class="file-size">${formatSize(uploadedFiles[name].file.size)}</span>
+        <button class="file-remove" onclick="removeFile('${name}')">✕</button>
+      </div>
+    `).join('');
+    const count = names.length;
+    document.getElementById('uploadCount').textContent = `${count} file${count>1?'s':''} ready`;
+    document.getElementById('goToWire').disabled = count < 1;
+  }
+
+  function removeFile(name) {
+    delete uploadedFiles[name];
+    renderFileList();
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1024/1024).toFixed(1) + ' MB';
+  }
+
+  // ─── Phase Navigation ─────────────────────────────────────────────────
+  function setStep(n) {
+    [1,2,3,4].forEach(i => {
+      document.getElementById(`step${i}`).className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+      document.getElementById(`phase${i}`).className = 'phase' + (i === n ? ' active' : '');
+    });
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  function goToPhase1() { setStep(1); }
+
+  function goToPhase2() {
+    setStep(2);
+    renderWiringBlocks();
+  }
+
+  function goToPhase3() {
+    setStep(3);
+    renderMockBlocks();
+  }
+
+  function goToPhase4() {
+    setStep(4);
+    generateOutput();
+  }
+
+  // ─── Mock Blocks ──────────────────────────────────────────────────────
+  const MOCK_STATES = [
+    { value: 'normal',   label: '✅ Normal',         desc: 'Element present, visible, enabled' },
+    { value: 'notfound', label: '❌ Not Found',       desc: 'Remove element from DOM' },
+    { value: 'hidden',   label: '👁 Not Visible',     desc: 'Set display:none' },
+    { value: 'wrongtag', label: '🏷 Not a Button',    desc: 'Change to <div> tag' },
+    { value: 'disabled', label: '🚫 Not Enabled',     desc: 'Add disabled attribute' },
+  ];
+
+  function renderMockBlocks() {
+    const names = Object.keys(uploadedFiles);
+    const container = document.getElementById('mockBlocks');
+    names.forEach(name => { if (!mocks[name]) mocks[name] = []; });
+
+    container.innerHTML = names.map(name => `
+      <div class="page-block">
+        <div class="page-header">
+          <div class="page-dot" style="background:var(--yellow)"></div>
+          <div class="page-filename">${name}</div>
+          <span class="tag" style="background:rgba(255,215,64,0.1);color:var(--yellow);border:1px solid rgba(255,215,64,0.2)">MOCK</span>
+        </div>
+        <div class="page-body" id="mockbody_${sanitize(name)}">
+          ${renderMockRows(name)}
+          <button class="add-mapping-btn" onclick="addMock('${name}')">+ Add element to mock</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderMockRows(filename) {
+    if ((mocks[filename] || []).length === 0) {
+      return `<div class="no-files-msg">No mocks defined — click below to add elements to mock for negative test cases.</div>`;
+    }
+    return (mocks[filename] || []).map((m, i) => `
+      <div class="mapping-row-wrap" style="border-color:rgba(255,215,64,0.15)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+          <div>
+            <div class="label">Element Label (for panel display)</div>
+            <input type="text" placeholder="e.g. NOA Button"
+              value="${m.label || ''}"
+              onchange="updateMock('${filename}', ${i}, 'label', this.value)" />
+          </div>
+          <div>
+            <div class="label">Error Code (for reference)</div>
+            <input type="text" placeholder="e.g. NOA_BUTTON_NOT_VISIBLE"
+              value="${m.errorCode || ''}"
+              onchange="updateMock('${filename}', ${i}, 'errorCode', this.value)" />
+          </div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div class="label-row">
+            <div class="label">Element Selector</div>
+            <div class="selector-type-toggle">
+              <button class="type-btn ${(!m.selectorType || m.selectorType==='css') ? 'active' : ''}"
+                onclick="setMockSelectorType('${filename}', ${i}, 'css')">CSS / ID</button>
+              <button class="type-btn ${m.selectorType==='xpath' ? 'active' : ''}"
+                onclick="setMockSelectorType('${filename}', ${i}, 'xpath')">XPath</button>
+            </div>
+          </div>
+          <input type="text"
+            placeholder="${(!m.selectorType || m.selectorType==='css') ? "#noaBtn or .noa-button" : "//button[@id='noaBtn']"}"
+            value="${m.selector || ''}"
+            onchange="updateMock('${filename}', ${i}, 'selector', this.value)" />
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div class="label" style="margin:0">Default State when page loads:</div>
+          <select style="width:auto;min-width:180px;" onchange="updateMock('${filename}', ${i}, 'defaultState', this.value)">
+            ${MOCK_STATES.map(s => `
+              <option value="${s.value}" ${(m.defaultState||'normal')===s.value?'selected':''}>${s.label}</option>
+            `).join('')}
+          </select>
+          <button class="remove-mapping" onclick="removeMock('${filename}', ${i})">✕</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function addMock(filename) {
+    if (!mocks[filename]) mocks[filename] = [];
+    mocks[filename].push({ label: '', selector: '', selectorType: 'xpath', errorCode: '', defaultState: 'normal' });
+    refreshMockBody(filename);
+  }
+
+  function removeMock(filename, index) {
+    mocks[filename].splice(index, 1);
+    refreshMockBody(filename);
+  }
+
+  function updateMock(filename, index, key, value) {
+    if (!mocks[filename][index]) mocks[filename][index] = {};
+    mocks[filename][index][key] = value;
+  }
+
+  function setMockSelectorType(filename, index, type) {
+    mocks[filename][index].selectorType = type;
+    mocks[filename][index].selector = '';
+    refreshMockBody(filename);
+  }
+
+  function refreshMockBody(filename) {
+    document.getElementById(`mockbody_${sanitize(filename)}`).innerHTML =
+      renderMockRows(filename) +
+      `<button class="add-mapping-btn" onclick="addMock('${filename}')">+ Add element to mock</button>`;
+  }
+
+  // ─── Generate Mock Panel Script ───────────────────────────────────────
+  function generateMockPanelScript(fileMocks) {
+    const mockData = JSON.stringify((fileMocks || []).map(m => ({
+      label: m.label || 'Element',
+      selector: m.selector,
+      selectorType: m.selectorType || 'xpath',
+      errorCode: m.errorCode || '',
+      defaultState: m.defaultState || 'normal'
+    })));
+
+    return `
+<!-- ⚡ RPA Mock Control Panel -->
+<script>
+(function() {
+  var MOCKS = ${mockData};
+  var originalElements = {};
+
+  var MOCK_STATES = [
+    { value: 'normal',   label: '✅ Normal'        },
+    { value: 'notfound', label: '❌ Not Attached'   },
+    { value: 'hidden',   label: '👁 Not Visible'    },
+    { value: 'wrongtag', label: '🏷 Not a Button'   },
+    { value: 'disabled', label: '🚫 Not Enabled'    },
+    { value: 'readonly', label: '🔒 Not Editable'   },
+  ];
+
+  var S = {
+    bg:'#0d0f14',surface:'#13161e',border:'#242836',
+    accent:'#00e5ff',yellow:'#ffd740',green:'#00e676',
+    red:'#ff4f4f',muted:'#6b7280',text:'#e8eaf0',
+    purple:'#7b61ff',mono:'JetBrains Mono,monospace'
+  };
+
+  /* ── sanitize xpath: fix ALL Playwright-specific syntax for browser ── */
+  function sanitizeXPath(xpath) {
+    if (!xpath) return xpath;
+
+    // ── Fix 1: Reverse axes with // prefix → single /
+    // browser rejects //parent::, //ancestor:: etc.
+    var reverseAxes = [
+      'parent','ancestor','ancestor-or-self',
+      'preceding','preceding-sibling',
+      'following','following-sibling',
+      'self'
+    ];
+    reverseAxes.forEach(function(axis) {
+      var re = new RegExp('\\/\\/' + axis + '::', 'g');
+      xpath = xpath.replace(re, '/' + axis + '::');
+    });
+
+    // ── Fix 2: Double quotes inside XPath → single quotes
+    // prevents JS string conflict when injected inside "..."
+    // Only replace quotes that are INSIDE the xpath (attribute values)
+    // e.g. @class="foo" → @class='foo'
+    xpath = xpath.replace(/"([^"]*)"/g, function(match, inner) {
+      // only replace if it looks like an attribute value (after = sign)
+      return "'" + inner + "'";
+    });
+
+    // ── Fix 3: Normalize whitespace in text() comparisons
+    // //a[text()=" Login "] → //a[normalize-space()='Login']
+    xpath = xpath.replace(/text\(\)\s*=\s*["'](\s+[^"']+\s+)["']/g, function(match, text) {
+      return "normalize-space()='" + text.trim() + "'";
+    });
+
+    // ── Fix 4: Handle Playwright $ prefix selectors (not valid XPath)
+    // e.g. $"button" → just strip it
+    xpath = xpath.replace(/^\$/, '');
+
+    // ── Fix 5: Handle >> combinator (Playwright chain selector)
+    // Split and use last part only
+    if (xpath.indexOf(' >> ') !== -1) {
+      xpath = xpath.split(' >> ').pop().trim();
+    }
+
+    // ── Fix 6: xpath= prefix (Playwright explicit prefix)
+    if (xpath.indexOf('xpath=') === 0) {
+      xpath = xpath.substring(6);
+    }
+
+    // ── Fix 7: css= prefix
+    if (xpath.indexOf('css=') === 0) {
+      xpath = xpath.substring(4);
+    }
+
+    return xpath;
+  }
+
+  /* ── resolve element by xpath or css ── */
+  function getEl(selector, selectorType) {
+    try {
+      if (!selector) return null;
+      if (selectorType === 'xpath') {
+        var fixed = sanitizeXPath(selector);
+        var r = document.evaluate(fixed, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        return r.singleNodeValue;
+      }
+      return document.querySelector(selector);
+    } catch(e) { return null; }
+  }
+
+  /* ── restore original element ── */
+  function restoreEl(key) {
+    var saved = originalElements[key];
+    if (!saved) return;
+    var el = saved.orig;
+    var ph = saved.placeholder;
+    // restore styles
+    if (saved.origDisplay !== undefined) el.style.display = saved.origDisplay;
+    if (saved.origOpacity !== undefined) el.style.opacity = saved.origOpacity;
+    if (saved.origPointerEvents !== undefined) el.style.pointerEvents = saved.origPointerEvents;
+    // remove mocked attributes
+    el.removeAttribute('disabled');
+    el.removeAttribute('readonly');
+    el.removeAttribute('aria-disabled');
+    el.removeAttribute('aria-readonly');
+    el.removeAttribute('data-rpa-mock');
+    // restore onclick
+    if (saved.origOnclick !== undefined) el.onclick = saved.origOnclick;
+    // restore href for <a>
+    if (saved.origHref !== undefined) {
+      if (saved.origHref) el.setAttribute('href', saved.origHref);
+      else el.removeAttribute('href');
+    }
+    // restore replaced element
+    if (ph && ph.parentNode) ph.parentNode.replaceChild(el, ph);
+    delete originalElements[key];
+  }
+
+  /* ── CORE: apply state with smart tag detection ── */
+  function applyState(key, selector, selectorType, state) {
+    // always restore first
+    restoreEl(key);
+    if (state === 'normal') {
+      showStatus(key, '✅ Restored to Normal', S.green);
+      saveToStorage(key, selector, selectorType, state);
+      return;
+    }
+
+    var el = getEl(selector, selectorType);
+    if (!el) {
+      showStatus(key, '⚠️ Element not found on page', S.red);
+      return;
+    }
+
+    var tag = el.tagName.toUpperCase();
+
+    // save original state for restore
+    originalElements[key] = {
+      orig: el,
+      placeholder: null,
+      origDisplay: el.style.display,
+      origOpacity: el.style.opacity,
+      origPointerEvents: el.style.pointerEvents,
+      origOnclick: el.onclick,
+      origHref: el.getAttribute('href')
+    };
+
+    /* ── NOT ATTACHED: remove from DOM ── */
+    if (state === 'notfound') {
+      var ph = document.createComment('RPA_MOCK_REMOVED:'+key);
+      originalElements[key].placeholder = ph;
+      el.parentNode.replaceChild(ph, el);
+      showStatus(key, '❌ Removed from DOM → ELEMENT_NOT_ATTACHED', S.red);
+
+    /* ── NOT VISIBLE: hide element ── */
+    } else if (state === 'hidden') {
+      el.style.display = 'none';
+      showStatus(key, '👁 display:none → ELEMENT_NOT_VISIBLE', S.yellow);
+
+    /* ── NOT A BUTTON: replace with <p> tag (not in valid list) ── */
+    } else if (state === 'wrongtag') {
+      var p = document.createElement('p');
+      p.innerHTML = el.innerHTML;
+      p.className = el.className;
+      if (el.id) p.id = el.id;
+      p.setAttribute('data-rpa-mock', 'wrongtag');
+      p.style.cssText = el.style.cssText;
+      originalElements[key].placeholder = p;
+      el.parentNode.replaceChild(p, el);
+      showStatus(key, '🏷 Changed to <p> tag → ELEMENT_NOT_A_BUTTON', S.muted);
+
+    /* ── NOT ENABLED: smart per tag ── */
+    } else if (state === 'disabled') {
+      if (tag === 'A') {
+        /* Playwright checks aria-disabled for <a> tags */
+        el.setAttribute('aria-disabled', 'true');
+        el.setAttribute('data-rpa-mock', 'disabled');
+        el.removeAttribute('href');
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.4';
+        el.onclick = function(e){ e.preventDefault(); return false; };
+        showStatus(key, '🚫 aria-disabled=true (A tag) → ELEMENT_NOT_ENABLED', S.yellow);
+      } else {
+        /* BUTTON, INPUT, SELECT, TEXTAREA — native disabled works */
+        el.setAttribute('disabled', 'disabled');
+        el.style.opacity = '0.4';
+        showStatus(key, '🚫 disabled attr ('+tag+') → ELEMENT_NOT_ENABLED', S.yellow);
+      }
+
+    /* ── NOT EDITABLE: smart per tag ── */
+    } else if (state === 'readonly') {
+      if (tag === 'A') {
+        el.setAttribute('aria-readonly', 'true');
+        el.setAttribute('aria-disabled', 'true');
+        el.setAttribute('data-rpa-mock', 'readonly');
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.5';
+        el.onclick = function(e){ e.preventDefault(); return false; };
+        showStatus(key, '🔒 aria-readonly=true (A tag) → ELEMENT_NOT_EDITABLE', S.purple);
+      } else if (tag === 'BUTTON') {
+        el.setAttribute('readonly', 'readonly');
+        el.setAttribute('aria-readonly', 'true');
+        el.setAttribute('data-rpa-mock', 'readonly');
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.5';
+        showStatus(key, '🔒 readonly attr (BUTTON tag) → ELEMENT_NOT_EDITABLE', S.purple);
+      } else {
+        /* INPUT, TEXTAREA — native readonly */
+        el.setAttribute('readonly', 'readonly');
+        el.setAttribute('aria-readonly', 'true');
+        showStatus(key, '🔒 readonly attr ('+tag+') → ELEMENT_NOT_EDITABLE', S.purple);
+      }
+    }
+
+    saveToStorage(key, selector, selectorType, state);
+  }
+
+  /* ── localStorage: persist mocks across page navigation ── */
+  var STORAGE_KEY = 'rpa_mocks_v1';
+
+  function saveToStorage(key, selector, selectorType, state) {
+    try {
+      var all = loadFromStorage();
+      if (state === 'normal') {
+        delete all[key];
+      } else {
+        all[key] = { selector: selector, selectorType: selectorType, state: state };
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    } catch(e) {}
+  }
+
+  function loadFromStorage() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch(e) { return {}; }
+  }
+
+  function clearStorage() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  }
+
+  function autoApplyFromStorage() {
+    var all = loadFromStorage();
+    Object.keys(all).forEach(function(key) {
+      var m = all[key];
+      if (m.state && m.state !== 'normal') {
+        applyState(key, m.selector, m.selectorType, m.state);
+      }
+    });
+  }
+
+  function showStatus(key, msg, color) {
+    var el = document.getElementById('mock_status_'+key);
+    if (el) { el.textContent = msg; el.style.color = color; }
+    /* also update dyn status if key is dyn */
+    if (key === '__dyn__') {
+      var ds = document.getElementById('__dyn_status__');
+      if (ds) { ds.textContent = msg; ds.style.color = color; }
+    }
+  }
+
+  /* ── build pre-configured mock row ── */
+  function buildMockRow(m, key) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:10px;padding:10px;background:'+S.bg+';border-radius:8px;border:1px solid '+S.border;
+
+    var lbl  = '<div style="font-weight:600;color:'+S.yellow+';margin-bottom:2px;">'+m.label+'</div>';
+    var code = m.errorCode ? '<div style="color:'+S.muted+';font-size:10px;margin-bottom:6px;font-family:'+S.mono+';">'+m.errorCode+'</div>' : '';
+    var opts = MOCK_STATES.map(function(s){
+      return '<option value="'+s.value+'"'+(s.value===(m.defaultState||'normal')?' selected':'')+'>'+s.label+'</option>';
+    }).join('');
+    var sel  = '<select id="mock_sel_'+key+'" '+
+      'onchange="__rpa_apply__(\''+key+'\',\''+m.selector+'\',\''+m.selectorType+'\',this.value)" '+
+      'style="width:100%;background:'+S.surface+';border:1px solid '+S.border+';color:'+S.text+';'+
+      'padding:6px 8px;border-radius:6px;font-family:'+S.mono+';font-size:12px;margin-bottom:4px;">'+opts+'</select>';
+    var stat = '<div id="mock_status_'+key+'" style="font-size:10px;color:'+S.muted+';min-height:14px;"></div>';
+
+    wrap.innerHTML = lbl + code + sel + stat;
+    return wrap;
+  }
+
+  /* ── build dynamic section ── */
+  function buildDynamicSection() {
+    var wrap = document.createElement('div');
+    wrap.id = '__dyn_section__';
+    wrap.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px dashed '+S.border;
+
+    var title = '<div style="font-weight:700;color:'+S.accent+';font-size:12px;margin-bottom:8px;">⚡ Dynamic Mock (Runtime)</div>';
+
+    var inp = '<div style="margin-bottom:6px;">'+
+      '<div style="color:'+S.muted+';font-size:10px;margin-bottom:3px;">XPath / CSS Selector</div>'+
+      '<input id="__dyn_xpath__" type="text" placeholder="//a[text()=\'NOA\'] or #noaBtn" '+
+      'style="width:100%;background:'+S.bg+';border:1px solid '+S.border+';color:'+S.text+';'+
+      'padding:7px 8px;border-radius:6px;font-family:'+S.mono+';font-size:11px;outline:none;" /></div>';
+
+    var toggle = '<div style="display:flex;gap:6px;margin-bottom:6px;">'+
+      '<button id="__dyn_type_xpath__" onclick="__rpa_setDynType__(\'xpath\')" '+
+      'style="flex:1;padding:5px;border-radius:5px;border:1px solid '+S.accent+';background:'+S.accent+';'+
+      'color:#000;font-family:'+S.mono+';font-size:11px;cursor:pointer;font-weight:700;">XPath</button>'+
+      '<button id="__dyn_type_css__" onclick="__rpa_setDynType__(\'css\')" '+
+      'style="flex:1;padding:5px;border-radius:5px;border:1px solid '+S.border+';background:none;'+
+      'color:'+S.muted+';font-family:'+S.mono+';font-size:11px;cursor:pointer;">CSS/ID</button></div>';
+
+    var stateOpts = MOCK_STATES.map(function(s){
+      return '<option value="'+s.value+'">'+s.label+'</option>';
+    }).join('');
+    var stSel = '<div style="margin-bottom:8px;">'+
+      '<div style="color:'+S.muted+';font-size:10px;margin-bottom:3px;">Apply State</div>'+
+      '<select id="__dyn_state__" style="width:100%;background:'+S.bg+';border:1px solid '+S.border+';'+
+      'color:'+S.text+';padding:6px 8px;border-radius:6px;font-family:'+S.mono+';font-size:12px;">'+stateOpts+'</select></div>';
+
+    var applyBtn = '<button onclick="__rpa_applyDyn__()" '+
+      'style="width:100%;padding:8px;background:'+S.accent+';color:#000;border:none;border-radius:6px;'+
+      'font-family:'+S.mono+';font-size:12px;font-weight:700;cursor:pointer;margin-bottom:4px;">'+
+      '▶ Apply &amp; Save (persists across pages)</button>';
+
+    var resetBtn = '<button onclick="__rpa_resetDyn__()" '+
+      'style="width:100%;padding:7px;background:none;color:'+S.muted+';border:1px solid '+S.border+';'+
+      'border-radius:6px;font-family:'+S.mono+';font-size:11px;cursor:pointer;margin-bottom:4px;">'+
+      '↺ Reset This Element</button>';
+
+    var clearBtn = '<button onclick="__rpa_clearAll__()" '+
+      'style="width:100%;padding:7px;background:none;color:'+S.red+';border:1px solid rgba(255,79,79,0.3);'+
+      'border-radius:6px;font-family:'+S.mono+';font-size:11px;cursor:pointer;margin-bottom:4px;">'+
+      '🗑 Clear All Saved Mocks</button>';
+
+    var stat = '<div id="__dyn_status__" style="font-size:10px;color:'+S.muted+';min-height:14px;text-align:center;"></div>';
+
+    /* storage indicator */
+    var saved = loadFromStorage();
+    var count = Object.keys(saved).length;
+    var storageInfo = '<div id="__storage_info__" style="font-size:10px;color:'+(count>0?S.green:S.muted)+';'+
+      'text-align:center;margin-top:6px;padding:4px;background:'+S.bg+';border-radius:4px;">'+
+      (count>0 ? '💾 '+count+' mock(s) saved in browser — auto-applied on every page' : '💾 No saved mocks')+
+      '</div>';
+
+    wrap.innerHTML = title + inp + toggle + stSel + applyBtn + resetBtn + clearBtn + stat + storageInfo;
+    return wrap;
+  }
+
+  /* ── build full panel ── */
+  function buildPanel() {
+    var panel = document.createElement('div');
+    panel.id = '__rpa_mock_panel__';
+    panel.style.cssText = [
+      'position:fixed','bottom:20px','right:20px','z-index:999999',
+      'background:'+S.surface,'border:1px solid '+S.border,'border-radius:14px',
+      'padding:16px','width:370px','font-family:'+S.mono,'font-size:12px',
+      'box-shadow:0 8px 40px rgba(0,0,0,0.7)','color:'+S.text,
+      'max-height:90vh','overflow-y:auto'
+    ].join(';');
+
+    /* header */
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid '+S.border;
+    hdr.innerHTML =
+      '<div>'+
+        '<div style="font-weight:800;font-size:13px;color:'+S.accent+';">⚡ RPA Mock Panel</div>'+
+        '<div style="font-size:10px;color:'+S.muted+';margin-top:2px;">Playwright-compatible · A &amp; BUTTON aware</div>'+
+      '</div>'+
+      '<button onclick="document.getElementById(\'__rpa_mock_panel__\').style.display=\'none\'" '+
+      'style="background:none;border:none;color:'+S.muted+';cursor:pointer;font-size:16px;padding:0;">✕</button>';
+    panel.appendChild(hdr);
+
+    /* pre-configured mocks */
+    if (MOCKS.length > 0) {
+      var preTitle = document.createElement('div');
+      preTitle.style.cssText = 'font-weight:700;color:'+S.yellow+';font-size:10px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;';
+      preTitle.textContent = 'Pre-configured Elements';
+      panel.appendChild(preTitle);
+      MOCKS.forEach(function(m, i){ panel.appendChild(buildMockRow(m, 'pre_'+i)); });
+    }
+
+    panel.appendChild(buildDynamicSection());
+    document.body.appendChild(panel);
+  }
+
+  /* ── public API ── */
+  var dynType = 'xpath';
+
+  window.__rpa_setDynType__ = function(type) {
+    dynType = type;
+    var xBtn = document.getElementById('__dyn_type_xpath__');
+    var cBtn = document.getElementById('__dyn_type_css__');
+    if (type==='xpath') {
+      xBtn.style.background=S.accent; xBtn.style.color='#000'; xBtn.style.borderColor=S.accent;
+      cBtn.style.background='none';   cBtn.style.color=S.muted; cBtn.style.borderColor=S.border;
+    } else {
+      cBtn.style.background=S.accent; cBtn.style.color='#000'; cBtn.style.borderColor=S.accent;
+      xBtn.style.background='none';   xBtn.style.color=S.muted; xBtn.style.borderColor=S.border;
+    }
+  };
+
+  window.__rpa_applyDyn__ = function() {
+    var selector = document.getElementById('__dyn_xpath__').value.trim();
+    var state    = document.getElementById('__dyn_state__').value;
+    var status   = document.getElementById('__dyn_status__');
+    if (!selector) { status.textContent='⚠️ Please enter a selector'; status.style.color=S.red; return; }
+    applyState('__dyn__', selector, dynType, state);
+    /* update storage indicator */
+    var saved = loadFromStorage();
+    var info = document.getElementById('__storage_info__');
+    if (info) {
+      var c = Object.keys(saved).length;
+      info.textContent = c>0 ? '💾 '+c+' mock(s) saved — auto-applied on every page' : '💾 No saved mocks';
+      info.style.color = c>0 ? S.green : S.muted;
+    }
+  };
+
+  window.__rpa_resetDyn__ = function() {
+    var selector = document.getElementById('__dyn_xpath__').value.trim();
+    if (selector) applyState('__dyn__', selector, dynType, 'normal');
+    var status = document.getElementById('__dyn_status__');
+    if (status) { status.textContent='✅ Reset done'; status.style.color=S.green; }
+  };
+
+  window.__rpa_apply__ = function(key, selector, selectorType, state) {
+    applyState(key, selector, selectorType, state);
+  };
+
+  window.__rpa_clearAll__ = function() {
+    clearStorage();
+    Object.keys(originalElements).forEach(function(k){ restoreEl(k); });
+    var info = document.getElementById('__storage_info__');
+    if (info) { info.textContent='💾 No saved mocks'; info.style.color=S.muted; }
+    var status = document.getElementById('__dyn_status__');
+    if (status) { status.textContent='🗑 All mocks cleared'; status.style.color=S.green; }
+  };
+
+  /* ── auto-apply on every page load ── */
+  window.addEventListener('DOMContentLoaded', function() {
+    /* apply pre-configured defaults */
+    MOCKS.forEach(function(m, i) {
+      if (m.defaultState && m.defaultState !== 'normal') {
+        applyState('pre_'+i, m.selector, m.selectorType, m.defaultState);
+      }
+    });
+    /* auto-apply saved mocks from localStorage */
+    autoApplyFromStorage();
+    /* build panel */
+    buildPanel();
+  });
+})();
+<\/script>`;
+  }
+
+  function renderWiringBlocks() {
+    const names = Object.keys(uploadedFiles);
+    const container = document.getElementById('wiringBlocks');
+
+    // init mappings for new files
+    names.forEach(name => {
+      if (!mappings[name]) mappings[name] = [{ selector: '', targetPage: '' }];
+    });
+
+    container.innerHTML = names.map(name => `
+      <div class="page-block">
+        <div class="page-header">
+          <div class="page-dot"></div>
+          <div class="page-filename">${name}</div>
+          <span class="tag tag-info">PAGE</span>
+        </div>
+        <div class="page-body" id="body_${sanitize(name)}">
+          ${renderMappingRows(name)}
+          <button class="add-mapping-btn" onclick="addMapping('${name}')">+ Add another button mapping</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function sanitize(name) { return name.replace(/[^a-zA-Z0-9]/g, '_'); }
+
+  function renderMappingRows(filename) {
+    const names = Object.keys(uploadedFiles);
+    return (mappings[filename] || []).map((m, i) => `
+      <div class="mapping-row-wrap" id="row_${sanitize(filename)}_${i}">
+        <div class="mapping-row">
+          <div>
+            <div class="label-row">
+              <div class="label">Button Selector</div>
+              <div class="selector-type-toggle">
+                <button class="type-btn ${(!m.selectorType || m.selectorType==='css') ? 'active' : ''}"
+                  onclick="setSelectorType('${filename}', ${i}, 'css')">CSS / ID</button>
+                <button class="type-btn ${m.selectorType==='xpath' ? 'active' : ''}"
+                  onclick="setSelectorType('${filename}', ${i}, 'xpath')">XPath</button>
+              </div>
+            </div>
+            <input type="text"
+              placeholder="${(!m.selectorType || m.selectorType==='css') ? "#loginBtn or button[type='submit']" : "//div[@class='menuBar']//a[text()='Go To']"}"
+              value="${m.selector}"
+              onchange="updateMapping('${filename}', ${i}, 'selector', this.value)" />
+            ${m.selectorType==='xpath' ? `<div class="xpath-hint">⚡ XPath via document.evaluate()</div>` : ''}
+          </div>
+          <div class="arrow">→</div>
+          <div>
+            <div class="label">Navigates To</div>
+            <select onchange="updateMapping('${filename}', ${i}, 'targetPage', this.value)">
+              <option value="">— Select target page —</option>
+              ${names.filter(n => n !== filename).map(n => `
+                <option value="${n}" ${m.targetPage === n ? 'selected' : ''}>${n}</option>
+              `).join('')}
+              <option value="__end__" ${m.targetPage === '__end__' ? 'selected' : ''}>🏁 End of Flow</option>
+            </select>
+          </div>
+          <button class="remove-mapping" onclick="removeMapping('${filename}', ${i})" title="Remove">✕</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function setSelectorType(filename, index, type) {
+    if (!mappings[filename][index]) mappings[filename][index] = {};
+    mappings[filename][index].selectorType = type;
+    mappings[filename][index].selector = '';
+    refreshBody(filename);
+  }
+
+  function refreshBody(filename) {
+    document.getElementById(`body_${sanitize(filename)}`).innerHTML =
+      renderMappingRows(filename) +
+      `<button class="add-mapping-btn" onclick="addMapping('${filename}')">+ Add another button mapping</button>`;
+  }
+
+  function updateMapping(filename, index, key, value) {
+    if (!mappings[filename]) mappings[filename] = [];
+    if (!mappings[filename][index]) mappings[filename][index] = {};
+    mappings[filename][index][key] = value;
+  }
+
+  function addMapping(filename) {
+    if (!mappings[filename]) mappings[filename] = [];
+    mappings[filename].push({ selector: '', targetPage: '' });
+    document.getElementById(`body_${sanitize(filename)}`).innerHTML =
+      renderMappingRows(filename) +
+      `<button class="add-mapping-btn" onclick="addMapping('${filename}')">+ Add another button mapping</button>`;
+  }
+
+  function removeMapping(filename, index) {
+    mappings[filename].splice(index, 1);
+    if (mappings[filename].length === 0) mappings[filename].push({ selector: '', targetPage: '' });
+    document.getElementById(`body_${sanitize(filename)}`).innerHTML =
+      renderMappingRows(filename) +
+      `<button class="add-mapping-btn" onclick="addMapping('${filename}')">+ Add another button mapping</button>`;
+  }
+
+  // ─── Session Stripping ───────────────────────────────────────────────
+  function stripSessionScripts(html) {
+    let stripped = html;
+    let count = 0;
+
+    // 1. Remove entire <script> blocks containing session/logout/timeout/redirect logic
+    stripped = stripped.replace(/<script[\s\S]*?<\/script>/gi, function(scriptBlock) {
+      const lower = scriptBlock.toLowerCase();
+      const dangerous = [
+        'sessioncachekey', 'session_timeout', 'sessiontimeout',
+        'logout', 'signout', 'sign_out',
+        'isloggedin', 'isauthenticated',
+        'tokenexpir', 'authexpir', 'cacheexpir',
+        'window.location.href', 'window.location.replace',
+        'location.assign', 'location.reload',
+        'unauthorized', 'forbidden',
+        'redirecttologin', 'redirect_to_login',
+        'checkauth', 'check_auth', 'verifyauth',
+        'keepalive', 'keep_alive', 'pingserver',
+        'setinterval', // often used for session ping/timeout checks
+      ];
+      const hasDangerous = dangerous.some(kw => lower.includes(kw));
+      if (hasDangerous) {
+        count++;
+        return `<!-- ⚡ RPA Wiring Tool: Session script removed (${scriptBlock.length} chars) -->`;
+      }
+      return scriptBlock;
+    });
+
+    // 2. Remove meta refresh redirects
+    stripped = stripped.replace(/<meta[^>]*http-equiv=["']refresh["'][^>]*>/gi, function(tag) {
+      count++;
+      return `<!-- ⚡ RPA Wiring Tool: Meta refresh removed -->`;
+    });
+
+    // 3. Neutralize inline onload session checks
+    stripped = stripped.replace(/onload=["'][^"']*logout[^"']*["']/gi, function(attr) {
+      count++;
+      return `onload=""`;
+    });
+
+    // 4. Remove sessionCacheKey from all href URLs
+    stripped = stripped.replace(/sessionCacheKey=[A-Za-z0-9\-:_]+/gi, function() {
+      count++;
+      return `sessionCacheKey=STRIPPED`;
+    });
+
+    return { html: stripped, count };
+  }
+
+  // ─── Generate Output ──────────────────────────────────────────────────
+  let wiredFiles = {};
+  let stripReport = {};
+
+  function generateOutput() {
+    wiredFiles = {};
+    stripReport = {};
+    const names = Object.keys(uploadedFiles);
+    let previewLines = [];
+    let totalMappings = 0;
+
+    names.forEach(name => {
+      let html = uploadedFiles[name].content;
+
+      // ⚡ Strip session scripts first
+      const stripped = stripSessionScripts(html);
+      html = stripped.html;
+      stripReport[name] = stripped.count;
+
+      const fileMappings = (mappings[name] || []).filter(m => m.selector && m.targetPage);
+      totalMappings += fileMappings.length;
+
+      if (fileMappings.length > 0) {
+
+        // Fix XPath: handle ALL types of XPath patterns
+        function sanitizeXPath(xpath) {
+          if (!xpath) return xpath;
+
+          // Fix 1: Reverse axes with // prefix → single /
+          var reverseAxes = [
+            'parent','ancestor','ancestor-or-self',
+            'preceding','preceding-sibling',
+            'following','following-sibling','self'
+          ];
+          reverseAxes.forEach(function(axis) {
+            xpath = xpath.replace(new RegExp('\\/\\/' + axis + '::', 'g'), '/' + axis + '::');
+          });
+
+          // Fix 2: Double quotes inside XPath → single quotes
+          xpath = xpath.replace(/"([^"]*)"/g, function(m, inner) {
+            return "'" + inner + "'";
+          });
+
+          // Fix 3: Normalize whitespace in text() with spaces
+          xpath = xpath.replace(/text\(\)\s*=\s*["'](\s+[^"']+\s+)["']/g, function(m, text) {
+            return "normalize-space()='" + text.trim() + "'";
+          });
+
+          // Fix 4: Strip Playwright $ prefix
+          xpath = xpath.replace(/^\$/, '');
+
+          // Fix 5: Handle >> combinator — use last part
+          if (xpath.indexOf(' >> ') !== -1) {
+            xpath = xpath.split(' >> ').pop().trim();
+          }
+
+          // Fix 6: Strip xpath= prefix
+          if (xpath.indexOf('xpath=') === 0) xpath = xpath.substring(6);
+
+          // Fix 7: Strip css= prefix
+          if (xpath.indexOf('css=') === 0) xpath = xpath.substring(4);
+
+          return xpath;
+        }
+
+        const scriptLines = fileMappings.map(m => {
+          const target = m.targetPage === '__end__'
+            ? `alert('✅ End of flow reached!');`
+            : `window.location.href = 'http://localhost:8080/${m.targetPage}';`;
+
+          const safeSelector = m.selectorType === 'xpath'
+            ? sanitizeXPath(m.selector)
+            : m.selector;
+
+          const getEl = m.selectorType === 'xpath'
+            ? `document.evaluate("${safeSelector}",document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue`
+            : `document.querySelector("${safeSelector}")`;
+
+          return `
+  (function() {
+    var el = ${getEl};
+    if (el) {
+      if (el.tagName === 'A') { el.removeAttribute('href'); }
+      el.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        ${target}
+      }, true);
+    }
+  })();`;
+        }).join('\n');
+
+        const injectedScript = `\n<!-- ⚡ RPA Wiring Tool: Auto-injected navigation -->\n<script>\nwindow.addEventListener('DOMContentLoaded', function() {${scriptLines}\n});\n<\/script>\n`;
+
+        // Inject before </body> or append
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', injectedScript + '</body>');
+        } else {
+          html += injectedScript;
+        }
+
+        fileMappings.forEach(m => {
+          previewLines.push(`[${name}]`);
+          previewLines.push(`  Type     : "${m.selectorType === 'xpath' ? 'XPath' : 'CSS / ID'}"`);
+          previewLines.push(`  Selector : "${m.selector}"`);
+          previewLines.push(`  → Target : "${m.targetPage === '__end__' ? '🏁 End of Flow' : m.targetPage}"`);
+          previewLines.push('');
+        });
+      }
+
+      // Always inject mock panel
+      const mockPanelScript = generateMockPanelScript(mocks[name] || []);
+      if (mockPanelScript) {
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', mockPanelScript + '</body>');
+        } else {
+          html += mockPanelScript;
+        }
+      }
+
+      wiredFiles[name] = html;
+    });
+
+    // Summary
+    const totalStripped = Object.values(stripReport).reduce((a, b) => a + b, 0);
+    document.getElementById('summaryGrid').innerHTML = `
+      <div class="summary-card"><div class="summary-num">${names.length}</div><div class="summary-label">HTML Pages</div></div>
+      <div class="summary-card"><div class="summary-num">${totalMappings}</div><div class="summary-label">Button Wirings</div></div>
+      <div class="summary-card"><div class="summary-num" style="color:var(--green)">${totalStripped}</div><div class="summary-label">Session Scripts Stripped ✅</div></div>
+    `;
+
+    // Flow diagram
+    buildFlowDiagram();
+
+    // Preview
+    const stripLines = Object.entries(stripReport).map(([name, count]) =>
+      `  [${name}] → ${count} session script(s) stripped`
+    ).join('\n');
+
+    document.getElementById('outputBox').textContent =
+      `⚡ SESSION SCRIPTS STRIPPED:\n${stripLines}\n\n` +
+      (previewLines.length > 0 ? `🔗 BUTTON WIRINGS:\n${previewLines.join('\n')}` : 'No mappings configured. Files will be served as-is.');
+
+    // Run instructions
+    document.getElementById('runInstructions').innerHTML = `
+<strong>Step 1</strong> — Extract ZIP to a folder e.g.: <strong>D:\\rpa_flow\\</strong><br><br>
+<strong>Step 2</strong> — Open CMD in that folder and run:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<strong>python -m http.server 8080</strong><br><br>
+<strong>Step 3</strong> — Point your RPA script to:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<strong>http://localhost:8080/${names[0] || 'login.html'}</strong><br><br>
+<strong>Step 4</strong> — When RPA hits a <strong>Sleep</strong> keyword, look for the <strong>⚡ RPA Mock Panel</strong> (bottom-right of page)<br><br>
+<strong>Step 5</strong> — Select the element state (Hidden / Disabled / Not Found / Wrong Tag)<br><br>
+<strong>Step 6</strong> — RPA resumes → hits the mocked element → throws expected error code ✅
+    `;
+  }
+
+  function buildFlowDiagram() {
+    const names = Object.keys(uploadedFiles);
+    const diagram = document.getElementById('flowDiagram');
+
+    // Build a simple ordered flow chain
+    const visited = new Set();
+    const chain = [];
+
+    // find start (not a target of anything)
+    const allTargets = new Set();
+    names.forEach(name => {
+      (mappings[name] || []).forEach(m => { if (m.targetPage && m.targetPage !== '__end__') allTargets.add(m.targetPage); });
+    });
+    let start = names.find(n => !allTargets.has(n)) || names[0];
+
+    function traverse(name) {
+      if (!name || visited.has(name)) return;
+      visited.add(name);
+      chain.push(name);
+      const targets = (mappings[name] || []).map(m => m.targetPage).filter(t => t && t !== '__end__' && !visited.has(t));
+      targets.forEach(t => traverse(t));
+    }
+    traverse(start);
+    names.filter(n => !visited.has(n)).forEach(n => traverse(n));
+
+    diagram.innerHTML = chain.map((name, i) =>
+      `<div class="flow-node">${name}</div>${i < chain.length - 1 ? '<span class="flow-arrow">→</span>' : ''}`
+    ).join('') + `<span class="flow-arrow">→</span><div class="flow-node" style="border-color:var(--green);color:var(--green);">🏁 End</div>`;
+  }
+
+  // ─── Download ─────────────────────────────────────────────────────────
+  async function downloadAll() {
+    const zip = new JSZip();
+    const folder = zip.folder('rpa_flow');
+    Object.entries(wiredFiles).forEach(([name, content]) => {
+      folder.file(name, content);
+    });
+
+    // Add README
+    const readme = `RPA Flow - Wired HTML Pages
+===========================
+
+Generated by RPA Flow Wiring Tool
+
+HOW TO RUN:
+1. Open Command Prompt in this folder (rpa_flow)
+2. Run: python -m http.server 8080
+3. Open your browser at: http://localhost:8080/
+
+FILES:
+${Object.keys(wiredFiles).map(n => '  - ' + n + '  →  http://localhost:8080/' + n).join('\n')}
+
+ROBOT FRAMEWORK:
+  Open Browser    http://localhost:8080/${Object.keys(wiredFiles)[0] || 'login.html'}    chrome
+`;
+    folder.file('README.txt', readme);
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'rpa_flow_wired.zip';
+    a.click();
+  }
+</script>
+</body>
+</html>
