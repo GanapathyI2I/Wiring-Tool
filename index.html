@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RPA Flow Wiring Tool v3</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0d0f14; --surface: #13161e; --surface2: #1a1e2a;
+    --border: #242836; --accent: #00e5ff; --accent2: #7b61ff;
+    --green: #00e676; --red: #ff4f4f; --yellow: #ffd740;
+    --text: #e8eaf0; --muted: #6b7280;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-display: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-display); min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background-image: linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 0; }
+  .container { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px 60px; }
+
+  header { padding: 36px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 36px; display: flex; align-items: center; gap: 16px; }
+  .logo { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  header p { font-size: 13px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
+  .header-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+
+  .steps { display: flex; margin-bottom: 36px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .step { flex: 1; padding: 14px 16px; display: flex; align-items: center; gap: 10px; background: var(--surface); border-right: 1px solid var(--border); transition: background 0.2s; }
+  .step:last-child { border-right: none; }
+  .step.active { background: var(--surface2); }
+  .step-num { width: 26px; height: 26px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; font-family: var(--font-mono); flex-shrink: 0; transition: background 0.2s, color 0.2s; }
+  .step.active .step-num { background: var(--accent); color: #000; }
+  .step.done .step-num { background: var(--green); color: #000; }
+  .step-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .step.active .step-label { color: var(--text); }
+  .step.done .step-label { color: var(--green); }
+
+  .phase { display: none; }
+  .phase.active { display: block; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; margin-bottom: 20px; }
+  .card-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 18px; }
+  .card-desc { font-size: 13px; color: var(--muted); margin-bottom: 20px; font-family: var(--font-mono); }
+
+  .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(0,229,255,0.04); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-zone h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .upload-zone p { font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+
+  .file-list { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .file-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; animation: slideIn 0.2s ease; cursor: default; user-select: none; }
+  .file-item.dragging { opacity: 0.35; border-style: dashed; }
+  .file-item.drag-over { border-color: var(--accent); background: rgba(0,229,255,0.05); }
+  .drag-handle { color: var(--muted); font-size: 15px; cursor: grab; padding: 0 2px; flex-shrink: 0; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .file-badge { background: rgba(0,229,255,0.1); color: var(--accent); border-radius: 6px; padding: 4px 8px; font-size: 11px; font-family: var(--font-mono); font-weight: 600; border: 1px solid rgba(0,229,255,0.2); flex-shrink: 0; }
+  .file-name-display { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .file-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-alias { font-size: 11px; color: var(--accent2); font-family: var(--font-mono); background: rgba(123,97,255,0.1); border: 1px solid rgba(123,97,255,0.2); border-radius: 4px; padding: 2px 6px; flex-shrink: 0; }
+  .file-size { font-size: 12px; color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; }
+  .file-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 3px 6px; border-radius: 4px; transition: color 0.15s, background 0.15s; font-family: var(--font-mono); flex-shrink: 0; }
+  .file-btn:hover { color: var(--accent2); background: rgba(123,97,255,0.1); }
+  .file-remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; transition: color 0.15s, background 0.15s; flex-shrink: 0; }
+  .file-remove:hover { color: var(--red); background: rgba(255,79,79,0.1); }
+  .rename-input { background: var(--bg); border: 1px solid var(--accent2); border-radius: 5px; color: var(--text); font-family: var(--font-mono); font-size: 13px; padding: 2px 8px; width: 200px; outline: none; }
+  .rename-input:focus { border-color: var(--accent); }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 8px; font-family: var(--font-display); font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: all 0.15s; letter-spacing: 0.2px; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #33eaff; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,255,0.25); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-green:hover { background: #33eb8f; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,230,118,0.25); }
+  .btn-purple { background: var(--accent2); color: #fff; }
+  .btn-purple:hover { background: #9b85ff; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(123,97,255,0.25); }
+  .btn-sm { padding: 7px 14px; font-size: 12px; }
+  .btn-row { display: flex; gap: 12px; margin-top: 24px; align-items: center; flex-wrap: wrap; }
+
+  .page-block { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: visible; }
+  .page-header { padding: 14px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); cursor: pointer; transition: background 0.15s; border-radius: 12px 12px 0 0; }
+  .page-header:hover { background: rgba(255,255,255,0.04); }
+  .page-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+  .page-filename { font-size: 14px; font-weight: 700; flex: 1; font-family: var(--font-mono); color: var(--accent); }
+  .page-body { padding: 16px 18px; }
+  .page-body.collapsed { display: none; }
+  .collapse-icon { color: var(--muted); font-size: 12px; transition: transform 0.2s; flex-shrink: 0; }
+  .page-block.is-collapsed .collapse-icon { transform: rotate(-90deg); }
+
+  .mapping-row { display: grid; grid-template-columns: 1fr auto 1fr auto; gap: 10px; align-items: start; margin-bottom: 10px; }
+  .arrow { color: var(--accent); font-size: 18px; text-align: center; font-weight: 700; padding-top: 30px; }
+
+  select, input[type="text"] { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--font-mono); font-size: 13px; padding: 9px 12px; outline: none; transition: border-color 0.15s; appearance: none; }
+  select:focus, input[type="text"]:focus { border-color: var(--accent); }
+
+  .add-mapping-btn { background: none; border: 1px dashed var(--border); color: var(--muted); border-radius: 8px; padding: 8px 14px; font-size: 13px; font-family: var(--font-display); cursor: pointer; width: 100%; margin-top: 10px; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .add-mapping-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.04); }
+  .remove-mapping { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 4px; border-radius: 4px; transition: color 0.15s; flex-shrink: 0; margin-top: 28px; }
+  .remove-mapping:hover { color: var(--red); }
+
+  .output-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 18px; font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--green); white-space: pre-wrap; max-height: 300px; overflow-y: auto; margin-bottom: 16px; }
+  .tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.5px; }
+  .tag-info { background: rgba(0,229,255,0.1); color: var(--accent); border: 1px solid rgba(0,229,255,0.2); }
+
+  .info-box { background: rgba(0,229,255,0.05); border: 1px solid rgba(0,229,255,0.15); border-radius: 10px; padding: 16px 18px; font-size: 13px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 16px; line-height: 1.7; }
+  .info-box strong { color: var(--accent); }
+  .warn-box { background: rgba(255,79,79,0.06); border: 1px solid rgba(255,79,79,0.25); border-radius: 10px; padding: 14px 18px; font-size: 13px; color: var(--red); font-family: var(--font-mono); margin-bottom: 16px; line-height: 1.7; display: none; }
+  .warn-box.visible { display: block; }
+
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .summary-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; text-align: center; }
+  .summary-num { font-size: 32px; font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+  .summary-label { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+  .flow-diagram { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 20px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; }
+  .flow-node { background: var(--bg); border: 1px solid var(--accent2); border-radius: 8px; padding: 8px 14px; font-size: 12px; font-family: var(--font-mono); color: var(--accent2); font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .flow-node:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.04); }
+  .flow-arrow { color: var(--accent); font-weight: 700; font-size: 18px; }
+
+  @keyframes pulse-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(0,230,118,0.4); } 50% { box-shadow: 0 0 0 8px rgba(0,230,118,0); } }
+  .btn-green { animation: pulse-glow 2s infinite; }
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .label { font-size: 12px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 6px; }
+  .label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .selector-type-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .type-btn { background: none; border: none; color: var(--muted); font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 3px 10px; cursor: pointer; transition: all 0.15s; }
+  .type-btn:first-child { border-right: 1px solid var(--border); }
+  .type-btn.active { background: var(--accent); color: #000; }
+  .type-btn:not(.active):hover { background: var(--surface2); color: var(--text); }
+  .xpath-hint { font-size: 11px; color: var(--yellow); font-family: var(--font-mono); margin-top: 5px; }
+
+  .mapping-row-wrap { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; overflow: visible; }
+  .no-files-msg { text-align: center; padding: 20px; color: var(--muted); font-size: 13px; font-family: var(--font-mono); }
+
+  /* Error code autocomplete */
+  .ec-wrap { position: relative; }
+  .ec-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 200; background: var(--surface2); border: 1px solid var(--accent2); border-radius: 8px; margin-top: 4px; max-height: 200px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.6); display: none; }
+  .ec-dropdown.open { display: block; }
+  .ec-item { padding: 8px 12px; cursor: pointer; font-family: var(--font-mono); font-size: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+  .ec-item:last-child { border-bottom: none; }
+  .ec-item:hover { background: rgba(123,97,255,0.12); color: var(--accent2); }
+  .ec-hint { color: var(--muted); font-size: 11px; white-space: nowrap; }
+
+  /* Mini live flow */
+  .mini-flow { margin-top: 20px; }
+  .mini-flow-title { font-size: 12px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 8px; }
+  .mini-flow-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; min-height: 44px; }
+  .mini-node { background: var(--surface2); border: 1px solid var(--accent2); border-radius: 6px; padding: 5px 10px; font-size: 11px; font-family: var(--font-mono); color: var(--accent2); font-weight: 600; }
+  .mini-arrow { color: var(--accent); font-size: 14px; font-weight: 700; }
+
+  /* Preview modal */
+  .preview-modal { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,0.88); backdrop-filter: blur(6px); display: none; flex-direction: column; }
+  .preview-modal.open { display: flex; }
+  .preview-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .preview-header h3 { font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .preview-tabs-wrap { flex: 1; overflow-x: auto; display: flex; gap: 6px; }
+  .preview-tab { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: none; color: var(--muted); cursor: pointer; font-family: var(--font-mono); font-size: 12px; font-weight: 600; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; }
+  .preview-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .preview-tab:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  .preview-close { background: none; border: 1px solid var(--border); color: var(--muted); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .preview-close:hover { border-color: var(--red); color: var(--red); }
+  .preview-frame-wrap { flex: 1; overflow: hidden; position: relative; }
+  .preview-frame { width: 100%; height: 100%; border: none; background: #fff; }
+  .preview-footer { background: var(--surface); border-top: 1px solid var(--border); padding: 8px 20px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; }
+
+  /* Port config */
+  .port-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .port-row .label { margin: 0; flex-shrink: 0; }
+  .port-input { width: 100px !important; }
+
+  .mock-state-badge { display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-family: var(--font-mono); font-weight: 600; }
+  .mock-state-badge.normal   { background: rgba(0,230,118,0.1); color: var(--green); border: 1px solid rgba(0,230,118,0.2); }
+  .mock-state-badge.hidden   { background: rgba(255,215,64,0.1); color: var(--yellow); border: 1px solid rgba(255,215,64,0.2); }
+  .mock-state-badge.disabled { background: rgba(255,79,79,0.1); color: var(--red); border: 1px solid rgba(255,79,79,0.2); }
+  .mock-state-badge.notfound { background: rgba(255,79,79,0.1); color: var(--red); border: 1px solid rgba(255,79,79,0.2); }
+  .mock-state-badge.wrongtag { background: rgba(123,97,255,0.1); color: var(--accent2); border: 1px solid rgba(123,97,255,0.2); }
+
+  /* ── Selector Auto-Suggest ── */
+  .sel-wrap { position: relative; overflow: visible; }
+  .sel-suggest-btn {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: rgba(0,229,255,0.1); border: 1px solid rgba(0,229,255,0.2);
+    color: var(--accent); border-radius: 5px; padding: 2px 8px;
+    font-size: 10px; font-family: var(--font-mono); font-weight: 700;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap; z-index: 2;
+    line-height: 1.6;
+  }
+  .sel-suggest-btn:hover { background: rgba(0,229,255,0.2); border-color: var(--accent); }
+  .sel-wrap input { padding-right: 72px; }
+
+  .suggest-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 500;
+    background: var(--surface2); border: 1px solid var(--accent);
+    border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+    display: none; overflow: hidden;
+  }
+  .suggest-dropdown.open { display: block; }
+
+  .suggest-header {
+    padding: 10px 14px 8px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .suggest-search {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-family: var(--font-mono);
+    font-size: 12px; padding: 5px 10px; outline: none;
+  }
+  .suggest-search:focus { border-color: var(--accent); }
+  .suggest-close-btn {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 15px; padding: 2px 4px; line-height: 1;
+  }
+  .suggest-close-btn:hover { color: var(--red); }
+
+  .suggest-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    background: rgba(0,0,0,0.2);
+  }
+  .suggest-tab {
+    flex: 1; padding: 7px 10px; background: none; border: none;
+    color: var(--muted); font-family: var(--font-mono); font-size: 11px;
+    font-weight: 600; cursor: pointer; transition: all 0.15s;
+    border-right: 1px solid var(--border);
+  }
+  .suggest-tab:last-child { border-right: none; }
+  .suggest-tab.active { background: var(--surface); color: var(--accent); }
+  .suggest-tab:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.03); }
+
+  .suggest-list { max-height: 240px; overflow-y: auto; }
+  .suggest-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 12px; font-family: var(--font-mono); }
+
+  .suggest-item {
+    padding: 9px 14px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.1s; display: flex; align-items: flex-start; gap: 10px;
+  }
+  .suggest-item:last-child { border-bottom: none; }
+  .suggest-item:hover { background: rgba(0,229,255,0.06); }
+  .suggest-item-icon {
+    width: 24px; height: 24px; border-radius: 5px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; font-family: var(--font-mono);
+    margin-top: 1px;
+  }
+  .si-btn  { background: rgba(0,229,255,0.12); color: var(--accent); }
+  .si-a    { background: rgba(123,97,255,0.12); color: var(--accent2); }
+  .si-inp  { background: rgba(255,215,64,0.12); color: var(--yellow); }
+  .si-sel  { background: rgba(0,230,118,0.12); color: var(--green); }
+  .si-other{ background: rgba(107,114,128,0.12); color: var(--muted); }
+
+  .suggest-item-body { flex: 1; min-width: 0; }
+  .suggest-item-selector {
+    font-family: var(--font-mono); font-size: 12px; color: var(--text);
+    font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .suggest-item-meta {
+    font-size: 11px; color: var(--muted); font-family: var(--font-mono);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .suggest-item-tag {
+    font-size: 10px; font-family: var(--font-mono); font-weight: 700;
+    padding: 1px 6px; border-radius: 4px; flex-shrink: 0; align-self: center;
+  }
+  .st-css  { background: rgba(0,229,255,0.1); color: var(--accent); border: 1px solid rgba(0,229,255,0.2); }
+  .st-xpath { background: rgba(255,215,64,0.1); color: var(--yellow); border: 1px solid rgba(255,215,64,0.2); }
+  .suggest-item-xpath {
+    font-family: var(--font-mono); font-size: 10px; color: var(--muted);
+    margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .suggest-footer {
+    padding: 7px 14px; border-top: 1px solid var(--border);
+    font-size: 10px; color: var(--muted); font-family: var(--font-mono);
+    background: rgba(0,0,0,0.15); display: flex; justify-content: space-between;
+  }
+  .suggest-count { color: var(--accent2); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">⚡</div>
+    <div>
+      <h1>RPA Flow Wiring Tool</h1>
+      <p>Wire static HTML pages into a testable RPA flow · v3</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-sm" onclick="exportConfig()">💾 Save Config</button>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;" title="Import config JSON">
+        📂 Load Config
+        <input type="file" accept=".json" id="configFileInput" style="display:none" onchange="importConfig(this)" />
+      </label>
+    </div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1"><div class="step-num">1</div><div class="step-label">Upload Pages</div></div>
+    <div class="step" id="step2"><div class="step-num">2</div><div class="step-label">Wire Buttons</div></div>
+    <div class="step" id="step3"><div class="step-num">3</div><div class="step-label">Mock Elements</div></div>
+    <div class="step" id="step4"><div class="step-num">4</div><div class="step-label">Generate & Download</div></div>
+  </div>
+
+  <!-- Phase 1: Upload -->
+  <div class="phase active" id="phase1">
+    <div class="card">
+      <div class="card-title"><span class="icon">📂</span> Upload Your Captured HTML Pages</div>
+      <div class="card-desc">Upload all HTML files from SingleFile. Drag ⠿ to reorder pages. Click ✏️ to set a display alias.</div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".html,.htm" multiple />
+        <div class="upload-icon">🗂️</div>
+        <h3>Drop HTML files here</h3>
+        <p>or click to browse · Supports multiple files</p>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="goToWire" disabled onclick="goToPhase2()">Next: Wire Buttons →</button>
+      <span id="uploadCount" style="font-size:13px;color:var(--muted);font-family:var(--font-mono);">No files uploaded</span>
+    </div>
+  </div>
+
+  <!-- Phase 2: Wire -->
+  <div class="phase" id="phase2">
+    <div class="card">
+      <div class="card-title"><span class="icon">🔗</span> Wire Buttons to Pages</div>
+      <div class="card-desc">Map button clicks to page navigations. Click a page header to collapse it.</div>
+      <div class="info-box">
+        💡 Click <strong>⚡ Suggest</strong> next to any selector field to auto-parse the page's HTML and pick an element from a searchable list.<br>
+        Or type manually — CSS: <strong>#loginBtn</strong> · <strong>button[type="submit"]</strong> &nbsp;|&nbsp; XPath: <strong>//button[text()='Login']</strong>
+      </div>
+      <div id="warnBox" class="warn-box"></div>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn btn-ghost btn-sm" onclick="collapseAll('wire')">⊟ Collapse All</button>
+        <button class="btn btn-ghost btn-sm" onclick="expandAll('wire')">⊞ Expand All</button>
+      </div>
+      <div id="wiringBlocks"></div>
+      <div class="mini-flow">
+        <div class="mini-flow-title">Live Flow Preview</div>
+        <div class="mini-flow-box" id="miniFlow"><span style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">Wire some buttons to see the flow…</span></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goToPhase1()">← Back</button>
+      <button class="btn btn-primary" onclick="validateAndNext()">Next: Mock Elements →</button>
+    </div>
+  </div>
+
+  <!-- Phase 3: Mock -->
+  <div class="phase" id="phase3">
+    <div class="card">
+      <div class="card-title"><span class="icon">🎭</span> Mock Element States</div>
+      <div class="card-desc">Define elements to mock. A floating control panel is injected into each page for toggling states during testing.</div>
+      <div class="info-box">
+        💡 RPA hits <strong>Sleep</strong> → you click state in mock panel → RPA resumes → error code is thrown ✅<br>
+        Start typing in the <strong>Error Code</strong> field to see suggestions from the standard library.
+      </div>
+      <div id="mockBlocks"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="goToPhase2()">← Back</button>
+      <button class="btn btn-primary" onclick="goToPhase4()">Generate Files →</button>
+    </div>
+  </div>
+
+  <!-- Phase 4: Generate -->
+  <div class="phase" id="phase4">
+    <div class="card">
+      <div class="card-title"><span class="icon">✅</span> Your Flow is Ready!</div>
+      <div class="card-desc">Files wired and mocked. Preview them live, or download the ZIP.</div>
+
+      <div class="summary-grid" id="summaryGrid"></div>
+
+      <div class="card-title" style="margin-bottom:10px;"><span class="icon">🔀</span> Flow Diagram <span style="font-size:12px;color:var(--muted);font-weight:400;font-family:var(--font-mono);">(click a node to preview it)</span></div>
+      <div class="flow-diagram" id="flowDiagram"></div>
+      <div class="divider"></div>
+
+      <div class="port-row">
+        <div class="label">Server Port:</div>
+        <input type="text" class="port-input" id="serverPort" value="8080" placeholder="8080" oninput="refreshRunInstructions()" />
+        <span style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">Used in run instructions & file wiring</span>
+      </div>
+
+      <div class="card-title" style="margin-bottom:10px;"><span class="icon">📋</span> Generated Wiring Preview</div>
+      <div class="output-box" id="outputBox"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-green" onclick="downloadAll()">⬇ Download Wired ZIP</button>
+        <button class="btn btn-purple" onclick="openPreview()">👁 Live Preview</button>
+        <button class="btn btn-ghost" onclick="goToPhase3()">← Back</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">🚀</span> How to Run</div>
+      <div class="card-desc">Follow these steps after downloading:</div>
+      <div class="info-box" id="runInstructions"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Preview Modal -->
+<div class="preview-modal" id="previewModal">
+  <div class="preview-header">
+    <h3>👁 Live Preview</h3>
+    <div class="preview-tabs-wrap" id="previewTabs"></div>
+    <button class="preview-close" onclick="closePreview()">✕</button>
+  </div>
+  <div class="preview-frame-wrap">
+    <iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+  </div>
+  <div class="preview-footer">⚡ Wired navigation active — button clicks switch pages. Mock panel injected at bottom-right.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ─── Error Code Library ───────────────────────────────────────────────────
+const ERROR_CODES = [
+  { code: 'ELEMENT_NOT_FOUND',        hint: 'Not attached to DOM' },
+  { code: 'ELEMENT_NOT_VISIBLE',      hint: 'Hidden / display:none' },
+  { code: 'ELEMENT_NOT_ENABLED',      hint: 'Disabled attribute' },
+  { code: 'ELEMENT_NOT_EDITABLE',     hint: 'Readonly attribute' },
+  { code: 'ELEMENT_NOT_A_BUTTON',     hint: 'Wrong tag type' },
+  { code: 'ELEMENT_STALE_REFERENCE',  hint: 'DOM changed after load' },
+  { code: 'ELEMENT_NOT_INTERACTABLE', hint: 'Covered or pointer-events:none' },
+  { code: 'TIMEOUT_WAITING_ELEMENT',  hint: 'Did not appear in time' },
+  { code: 'ELEMENT_NOT_SELECTED',     hint: 'Checkbox/radio not checked' },
+  { code: 'INVALID_ELEMENT_STATE',    hint: 'Unexpected state' },
+  { code: 'PAGE_LOAD_FAILED',         hint: 'Navigation did not complete' },
+  { code: 'ASSERTION_FAILED',         hint: 'Value did not match expected' },
+];
+
+// ─── State ────────────────────────────────────────────────────────────────
+let uploadedFiles = {};  // name → {file, content, alias}
+let fileOrder = [];
+let mappings = {};
+let mocks = {};
+let wiredFiles = {};
+let stripReport = {};
+let blobUrls = {};
+let currentPreviewFile = null;
+
+// ─── Upload ───────────────────────────────────────────────────────────────
+const uploadZone = document.getElementById('uploadZone');
+const fileInput  = document.getElementById('fileInput');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  handleFiles(Array.from(e.dataTransfer.files).filter(f => f.name.match(/\.html?$/i)));
+});
+fileInput.addEventListener('change', () => handleFiles(Array.from(fileInput.files)));
+
+function handleFiles(files) {
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      uploadedFiles[file.name] = { file, content: e.target.result, alias: null };
+      delete parsedElements[file.name]; // invalidate parse cache
+      if (!fileOrder.includes(file.name)) fileOrder.push(file.name);
+      renderFileList();
+    };
+    reader.readAsText(file);
+  });
+}
+
+function getDisplay(name) { return uploadedFiles[name]?.alias || name; }
+
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  if (!fileOrder.length) { list.innerHTML = ''; updateUploadCount(); return; }
+  list.innerHTML = fileOrder.map(name => {
+    const alias = uploadedFiles[name]?.alias || '';
+    return `<div class="file-item" draggable="true" id="fi_${s(name)}"
+      ondragstart="fds(event,'${name}')" ondragover="fdo(event,'${name}')"
+      ondrop="fdp(event,'${name}')" ondragend="fde()">
+      <span class="drag-handle" title="Drag to reorder">⠿</span>
+      <span class="file-badge">HTML</span>
+      <span class="file-name-display">
+        <span class="file-name">${name}</span>
+        ${alias ? `<span class="file-alias">${alias}</span>` : ''}
+      </span>
+      <span class="file-size">${fmtSize(uploadedFiles[name].file.size)}</span>
+      <button class="file-btn" onclick="startRename('${name}')" title="Set display alias">✏️</button>
+      <button class="file-remove" onclick="removeFile('${name}')">✕</button>
+    </div>`;
+  }).join('');
+  updateUploadCount();
+}
+
+function updateUploadCount() {
+  const n = fileOrder.length;
+  document.getElementById('uploadCount').textContent = n ? `${n} file${n>1?'s':''} ready` : 'No files uploaded';
+  document.getElementById('goToWire').disabled = n < 1;
+}
+
+let dragSrc = null;
+function fds(e, name) { dragSrc = name; document.getElementById(`fi_${s(name)}`).classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function fdo(e, name) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; document.querySelectorAll('.file-item').forEach(el => el.classList.remove('drag-over')); if (name !== dragSrc) document.getElementById(`fi_${s(name)}`)?.classList.add('drag-over'); }
+function fdp(e, name) { e.preventDefault(); if (!dragSrc || dragSrc === name) return; const fi = fileOrder.indexOf(dragSrc), ti = fileOrder.indexOf(name); if (fi < 0 || ti < 0) return; fileOrder.splice(fi, 1); fileOrder.splice(ti, 0, dragSrc); renderFileList(); }
+function fde() { dragSrc = null; document.querySelectorAll('.file-item').forEach(el => { el.classList.remove('dragging'); el.classList.remove('drag-over'); }); }
+
+function startRename(name) {
+  const nameSpan = document.querySelector(`#fi_${s(name)} .file-name-display`);
+  if (!nameSpan) return;
+  const cur = uploadedFiles[name].alias || '';
+  nameSpan.innerHTML = `<input class="rename-input" value="${esc(cur)}" placeholder="Display alias (optional)"
+    onblur="commitRename('${name}',this.value)"
+    onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){uploadedFiles['${name}'].alias=uploadedFiles['${name}'].alias;renderFileList();}" />`;
+  nameSpan.querySelector('input').focus();
+}
+function commitRename(name, v) { uploadedFiles[name].alias = v.trim() || null; renderFileList(); }
+function removeFile(name) { delete uploadedFiles[name]; delete parsedElements[name]; fileOrder = fileOrder.filter(n => n !== name); renderFileList(); }
+function fmtSize(b) { return b < 1024 ? b+' B' : b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
+
+// ─── Phase nav ────────────────────────────────────────────────────────────
+function setStep(n) {
+  [1,2,3,4].forEach(i => {
+    document.getElementById(`step${i}`).className = 'step'+(i<n?' done':i===n?' active':'');
+    document.getElementById(`phase${i}`).className = 'phase'+(i===n?' active':'');
+  });
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function goToPhase1() { setStep(1); }
+function goToPhase2() { setStep(2); renderWiringBlocks(); updateMiniFlow(); }
+function goToPhase3() { setStep(3); renderMockBlocks(); }
+function goToPhase4() { setStep(4); generateOutput(); }
+
+function validateAndNext() {
+  const errs = [];
+  fileOrder.forEach(name => {
+    (mappings[name]||[]).forEach((m,i) => {
+      if (m.selector && !m.targetPage) errs.push(`[${getDisplay(name)}] mapping #${i+1}: selector given but no target page.`);
+      if (!m.selector && m.targetPage) errs.push(`[${getDisplay(name)}] mapping #${i+1}: target page set but no selector.`);
+    });
+  });
+  const box = document.getElementById('warnBox');
+  if (errs.length) { box.innerHTML = '⚠️ Fix before proceeding:<br>'+errs.map(e=>`• ${e}`).join('<br>'); box.classList.add('visible'); return; }
+  box.classList.remove('visible');
+  goToPhase3();
+}
+
+// ─── Collapse / expand ────────────────────────────────────────────────────
+function toggleBlock(prefix, name) {
+  const block = document.getElementById(`${prefix}_${s(name)}`);
+  const body  = document.getElementById(`${prefix}body_${s(name)}`);
+  if (!block||!body) return;
+  const c = block.classList.toggle('is-collapsed');
+  body.classList.toggle('collapsed', c);
+}
+function collapseAll(prefix) { fileOrder.forEach(n => { document.getElementById(`${prefix}_${s(n)}`)?.classList.add('is-collapsed'); document.getElementById(`${prefix}body_${s(n)}`)?.classList.add('collapsed'); }); }
+function expandAll(prefix) { fileOrder.forEach(n => { document.getElementById(`${prefix}_${s(n)}`)?.classList.remove('is-collapsed'); document.getElementById(`${prefix}body_${s(n)}`)?.classList.remove('collapsed'); }); }
+
+// ─── Wiring Blocks ────────────────────────────────────────────────────────
+function renderWiringBlocks() {
+  fileOrder.forEach(name => { if (!mappings[name]) mappings[name] = [{selector:'',targetPage:'',selectorType:'css'}]; });
+  document.getElementById('wiringBlocks').innerHTML = fileOrder.map(name => `
+    <div class="page-block" id="wire_${s(name)}">
+      <div class="page-header" onclick="toggleBlock('wire','${name}')">
+        <div class="page-dot"></div>
+        <div class="page-filename">${getDisplay(name)}</div>
+        <span class="tag tag-info">PAGE</span>
+        <span class="collapse-icon">▾</span>
+      </div>
+      <div class="page-body" id="wirebody_${s(name)}">
+        ${renderMappingRows(name)}
+        <button class="add-mapping-btn" onclick="addMapping('${name}')">+ Add another button mapping</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderMappingRows(filename) {
+  return (mappings[filename]||[]).map((m,i) => `
+    <div class="mapping-row-wrap">
+      <div class="mapping-row">
+        <div>
+          <div class="label-row">
+            <div class="label">Button Selector</div>
+            <div class="selector-type-toggle">
+              <button class="type-btn ${(!m.selectorType||m.selectorType==='css')?'active':''}" onclick="setSelType('${filename}',${i},'css')">CSS / ID</button>
+              <button class="type-btn ${m.selectorType==='xpath'?'active':''}" onclick="setSelType('${filename}',${i},'xpath')">XPath</button>
+            </div>
+          </div>
+          <div class="sel-wrap">
+            <input type="text" id="selinp_${s(filename)}_${i}" value="${esc(m.selector)}"
+              placeholder="${(!m.selectorType||m.selectorType==='css')?"#loginBtn or button[type='submit']":"//button[text()='Login']"}"
+              onchange="updateM('${filename}',${i},'selector',this.value);updateMiniFlow()" />
+            <button class="sel-suggest-btn" onclick="openSuggest('${filename}',${i})" title="Auto-suggest from page elements">⚡ Suggest</button>
+            <div class="suggest-dropdown" id="sugdrop_${s(filename)}_${i}">
+              <div class="suggest-header">
+                <input class="suggest-search" placeholder="Search elements…" oninput="filterSuggest('${filename}',${i},this.value)" id="sugsearch_${s(filename)}_${i}" />
+                <button class="suggest-close-btn" onclick="closeSuggest('${filename}',${i})">✕</button>
+              </div>
+              <div class="suggest-tabs" id="sugtabs_${s(filename)}_${i}">
+                <button class="suggest-tab active" onclick="setSuggestTab('${filename}',${i},'all',this)">All</button>
+                <button class="suggest-tab" onclick="setSuggestTab('${filename}',${i},'button',this)">Buttons</button>
+                <button class="suggest-tab" onclick="setSuggestTab('${filename}',${i},'a',this)">Links</button>
+                <button class="suggest-tab" onclick="setSuggestTab('${filename}',${i},'input',this)">Inputs</button>
+              </div>
+              <div class="suggest-list" id="suglist_${s(filename)}_${i}">
+                <div class="suggest-empty">Click ⚡ Suggest to parse elements from this page</div>
+              </div>
+              <div class="suggest-footer">
+                <span id="sugcount_${s(filename)}_${i}">—</span>
+                <span>Click an element to use its selector</span>
+              </div>
+            </div>
+          </div>
+          ${m.selectorType==='xpath'?`<div class="xpath-hint">⚡ XPath via document.evaluate()</div>`:''}
+        </div>
+        <div class="arrow">→</div>
+        <div>
+          <div class="label">Navigates To</div>
+          <select onchange="updateM('${filename}',${i},'targetPage',this.value);updateMiniFlow()">
+            <option value="">— Select target page —</option>
+            ${fileOrder.filter(n=>n!==filename).map(n=>`<option value="${n}" ${m.targetPage===n?'selected':''}>${getDisplay(n)}</option>`).join('')}
+            <option value="__end__" ${m.targetPage==='__end__'?'selected':''}>🏁 End of Flow</option>
+          </select>
+        </div>
+        <button class="remove-mapping" onclick="removeMapping('${filename}',${i})" title="Remove">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setSelType(filename, i, type) { mappings[filename][i]={...mappings[filename][i],selectorType:type,selector:''}; refreshWireBody(filename); }
+function updateM(filename, i, key, val) { if(!mappings[filename])mappings[filename]=[]; if(!mappings[filename][i])mappings[filename][i]={}; mappings[filename][i][key]=val; }
+function addMapping(filename) { if(!mappings[filename])mappings[filename]=[]; mappings[filename].push({selector:'',targetPage:'',selectorType:'css'}); refreshWireBody(filename); }
+function removeMapping(filename, i) { mappings[filename].splice(i,1); if(!mappings[filename].length)mappings[filename].push({selector:'',targetPage:'',selectorType:'css'}); refreshWireBody(filename); updateMiniFlow(); }
+function refreshWireBody(filename) { document.getElementById(`wirebody_${s(filename)}`).innerHTML = renderMappingRows(filename)+`<button class="add-mapping-btn" onclick="addMapping('${filename}')">+ Add another button mapping</button>`; }
+
+// ─── Mini live flow ───────────────────────────────────────────────────────
+function updateMiniFlow() {
+  const el = document.getElementById('miniFlow'); if(!el) return;
+  const chain = buildChain();
+  if(!chain.length){el.innerHTML=`<span style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">Wire some buttons to see the flow…</span>`;return;}
+  el.innerHTML = chain.map((n,i)=>`<div class="mini-node">${getDisplay(n)}</div>${i<chain.length-1?'<span class="mini-arrow">→</span>':''}`).join('')
+    +`<span class="mini-arrow">→</span><div class="mini-node" style="border-color:var(--green);color:var(--green);">🏁 End</div>`;
+}
+
+function buildChain() {
+  const names = fileOrder;
+  const targets = new Set();
+  names.forEach(name=>(mappings[name]||[]).forEach(m=>{if(m.targetPage&&m.targetPage!=='__end__')targets.add(m.targetPage);}));
+  const visited=new Set(), chain=[];
+  let start = names.find(n=>!targets.has(n))||names[0];
+  function traverse(name){ if(!name||visited.has(name))return; visited.add(name); chain.push(name); (mappings[name]||[]).map(m=>m.targetPage).filter(t=>t&&t!=='__end__'&&!visited.has(t)).forEach(traverse); }
+  traverse(start);
+  names.filter(n=>!visited.has(n)).forEach(traverse);
+  return chain;
+}
+
+// ─── Mock Blocks ──────────────────────────────────────────────────────────
+const MOCK_STATES = [
+  {value:'normal',  label:'✅ Normal'},
+  {value:'notfound',label:'❌ Not Found'},
+  {value:'hidden',  label:'👁 Not Visible'},
+  {value:'wrongtag',label:'🏷 Not a Button'},
+  {value:'disabled',label:'🚫 Not Enabled'},
+];
+
+function renderMockBlocks() {
+  fileOrder.forEach(name=>{if(!mocks[name])mocks[name]=[];});
+  document.getElementById('mockBlocks').innerHTML = fileOrder.map(name=>`
+    <div class="page-block" id="mock_${s(name)}">
+      <div class="page-header" onclick="toggleBlock('mock','${name}')">
+        <div class="page-dot" style="background:var(--yellow)"></div>
+        <div class="page-filename">${getDisplay(name)}</div>
+        <span class="tag" style="background:rgba(255,215,64,0.1);color:var(--yellow);border:1px solid rgba(255,215,64,0.2)">MOCK</span>
+        <span class="collapse-icon">▾</span>
+      </div>
+      <div class="page-body" id="mockbody_${s(name)}">
+        ${renderMockRows(name)}
+        <button class="add-mapping-btn" onclick="addMock('${name}')">+ Add element to mock</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderMockRows(filename) {
+  if(!(mocks[filename]||[]).length) return `<div class="no-files-msg">No mocks yet — click below to add elements.</div>`;
+  return (mocks[filename]||[]).map((m,i)=>`
+    <div class="mapping-row-wrap" style="border-color:rgba(255,215,64,0.15)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+        <div>
+          <div class="label">Element Label</div>
+          <input type="text" value="${esc(m.label)}" placeholder="e.g. NOA Button"
+            onchange="updateMock('${filename}',${i},'label',this.value)" />
+        </div>
+        <div class="ec-wrap">
+          <div class="label">Error Code</div>
+          <input type="text" id="ec_${s(filename)}_${i}" value="${esc(m.errorCode)}" placeholder="e.g. ELEMENT_NOT_VISIBLE"
+            onchange="updateMock('${filename}',${i},'errorCode',this.value)"
+            oninput="showEcDrop('${filename}',${i},this.value)"
+            onfocus="showEcDrop('${filename}',${i},this.value)"
+            onblur="setTimeout(()=>hideEcDrop('${filename}',${i}),200)" />
+          <div class="ec-dropdown" id="ecd_${s(filename)}_${i}"></div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="label-row">
+          <div class="label">Element Selector</div>
+          <div class="selector-type-toggle">
+            <button class="type-btn ${(!m.selectorType||m.selectorType==='css')?'active':''}" onclick="setMockSelType('${filename}',${i},'css')">CSS / ID</button>
+            <button class="type-btn ${m.selectorType==='xpath'?'active':''}" onclick="setMockSelType('${filename}',${i},'xpath')">XPath</button>
+          </div>
+        </div>
+        <div class="sel-wrap">
+          <input type="text" id="mselinp_${s(filename)}_${i}" value="${esc(m.selector)}"
+            placeholder="${(!m.selectorType||m.selectorType==='css')?'#noaBtn or .noa-button':"//button[@id='noaBtn']"}"
+            onchange="updateMock('${filename}',${i},'selector',this.value)" />
+          <button class="sel-suggest-btn" onclick="openMockSuggest('${filename}',${i})" title="Auto-suggest from page elements">⚡ Suggest</button>
+          <div class="suggest-dropdown" id="msugdrop_${s(filename)}_${i}">
+            <div class="suggest-header">
+              <input class="suggest-search" placeholder="Search elements…" oninput="filterMockSuggest('${filename}',${i},this.value)" id="msugsearch_${s(filename)}_${i}" />
+              <button class="suggest-close-btn" onclick="closeMockSuggest('${filename}',${i})">✕</button>
+            </div>
+            <div class="suggest-tabs">
+              <button class="suggest-tab active" onclick="setMockSuggestTab('${filename}',${i},'all',this)">All</button>
+              <button class="suggest-tab" onclick="setMockSuggestTab('${filename}',${i},'button',this)">Buttons</button>
+              <button class="suggest-tab" onclick="setMockSuggestTab('${filename}',${i},'a',this)">Links</button>
+              <button class="suggest-tab" onclick="setMockSuggestTab('${filename}',${i},'input',this)">Inputs</button>
+            </div>
+            <div class="suggest-list" id="msuglist_${s(filename)}_${i}">
+              <div class="suggest-empty">Click ⚡ Suggest to parse elements from this page</div>
+            </div>
+            <div class="suggest-footer">
+              <span id="msugcount_${s(filename)}_${i}">—</span>
+              <span>Click an element to use its selector</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div class="label" style="margin:0;flex-shrink:0">Default State:</div>
+        <select style="width:auto;min-width:180px;" onchange="updateMock('${filename}',${i},'defaultState',this.value)">
+          ${MOCK_STATES.map(s=>`<option value="${s.value}" ${(m.defaultState||'normal')===s.value?'selected':''}>${s.label}</option>`).join('')}
+        </select>
+        <button class="remove-mapping" style="margin-top:0" onclick="removeMock('${filename}',${i})">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showEcDrop(filename, i, val) {
+  const id = `ecd_${s(filename)}_${i}`;
+  const drop = document.getElementById(id); if(!drop) return;
+  const q = val.toLowerCase();
+  let items = ERROR_CODES;
+  if (q) items = items.filter(ec=>ec.code.toLowerCase().includes(q)||ec.hint.toLowerCase().includes(q));
+  if (!items.length) { drop.classList.remove('open'); return; }
+  drop.innerHTML = items.map(ec=>`<div class="ec-item" onmousedown="pickEc('${filename}',${i},'${ec.code}')">${ec.code}<span class="ec-hint">${ec.hint}</span></div>`).join('');
+  drop.classList.add('open');
+}
+function hideEcDrop(filename, i) { document.getElementById(`ecd_${s(filename)}_${i}`)?.classList.remove('open'); }
+function pickEc(filename, i, code) {
+  const inp = document.getElementById(`ec_${s(filename)}_${i}`); if(inp) inp.value = code;
+  updateMock(filename, i, 'errorCode', code);
+  hideEcDrop(filename, i);
+}
+
+function addMock(filename) { if(!mocks[filename])mocks[filename]=[]; mocks[filename].push({label:'',selector:'',selectorType:'xpath',errorCode:'',defaultState:'normal'}); refreshMockBody(filename); }
+function removeMock(filename, i) { mocks[filename].splice(i,1); refreshMockBody(filename); }
+function updateMock(filename, i, key, val) { if(!mocks[filename][i])mocks[filename][i]={}; mocks[filename][i][key]=val; }
+function setMockSelType(filename, i, type) { mocks[filename][i]={...mocks[filename][i],selectorType:type,selector:''}; refreshMockBody(filename); }
+function refreshMockBody(filename) { document.getElementById(`mockbody_${s(filename)}`).innerHTML=renderMockRows(filename)+`<button class="add-mapping-btn" onclick="addMock('${filename}')">+ Add element to mock</button>`; }
+
+// ─── XPath sanitizer ─────────────────────────────────────────────────────
+function sanitizeXPath(xpath) {
+  if(!xpath)return xpath;
+  ['parent','ancestor','ancestor-or-self','preceding','preceding-sibling','following','following-sibling','self'].forEach(ax=>{xpath=xpath.replace(new RegExp('\\/\\/'+ax+'::','g'),'/'+ax+'::');});
+  xpath=xpath.replace(/"([^"]*)"/g,(m,inner)=>"'"+inner+"'");
+  xpath=xpath.replace(/text\(\)\s*=\s*["'](\s+[^"']+\s+)["']/g,(m,t)=>"normalize-space()='"+t.trim()+"'");
+  xpath=xpath.replace(/^\$/,'');
+  if(xpath.includes(' >> '))xpath=xpath.split(' >> ').pop().trim();
+  if(xpath.startsWith('xpath='))xpath=xpath.substring(6);
+  if(xpath.startsWith('css='))xpath=xpath.substring(4);
+  return xpath;
+}
+
+// ─── Session stripping ───────────────────────────────────────────────────
+function stripSession(html) {
+  let out=html,count=0;
+  out=out.replace(/<script[\s\S]*?<\/script>/gi,block=>{
+    const lo=block.toLowerCase();
+    if(['sessioncachekey','session_timeout','sessiontimeout','logout','signout','sign_out','isloggedin','isauthenticated','tokenexpir','authexpir','cacheexpir','window.location.href','window.location.replace','location.assign','location.reload','unauthorized','forbidden','redirecttologin','redirect_to_login','checkauth','check_auth','verifyauth','keepalive','keep_alive','pingserver','setinterval'].some(k=>lo.includes(k))){count++;return`<!-- ⚡ RPA: session script removed -->`;}
+    return block;
+  });
+  out=out.replace(/<meta[^>]*http-equiv=["']refresh["'][^>]*>/gi,()=>{count++;return`<!-- ⚡ RPA: meta refresh removed -->`;});
+  out=out.replace(/onload=["'][^"']*logout[^"']*["']/gi,()=>{count++;return`onload=""`;});
+  out=out.replace(/sessionCacheKey=[A-Za-z0-9\-:_]+/gi,()=>{count++;return`sessionCacheKey=STRIPPED`;});
+  return{html:out,count};
+}
+
+// ─── Generate Output ──────────────────────────────────────────────────────
+function getPort() { return (document.getElementById('serverPort')?.value||'8080').trim()||'8080'; }
+
+function generateOutput() {
+  wiredFiles={}; stripReport={};
+  const port = getPort();
+  let previewLines=[], totalMap=0;
+
+  fileOrder.forEach(name=>{
+    let html=uploadedFiles[name].content;
+    const stripped=stripSession(html); html=stripped.html; stripReport[name]=stripped.count;
+    const fm=(mappings[name]||[]).filter(m=>m.selector&&m.targetPage);
+    totalMap+=fm.length;
+
+    if(fm.length){
+      const scriptLines=fm.map(m=>{
+        const target=m.targetPage==='__end__'?`alert('✅ End of flow reached!');`:`window.location.href='http://localhost:${port}/${m.targetPage}';`;
+        const safeS=m.selectorType==='xpath'?sanitizeXPath(m.selector):m.selector;
+        const getEl=m.selectorType==='xpath'?`document.evaluate("${safeS}",document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue`:`document.querySelector("${safeS}")`;
+        return`\n(function(){var el=${getEl};if(el){if(el.tagName==='A')el.removeAttribute('href');el.addEventListener("click",function(e){e.preventDefault();e.stopImmediatePropagation();${target}},true);}})();`;
+      }).join('');
+      const inj=`\n<!-- ⚡ RPA Wiring Tool -->\n<script>\nwindow.addEventListener('DOMContentLoaded',function(){${scriptLines}\n});\n<\/script>\n`;
+      html=html.includes('</body>')?html.replace('</body>',inj+'</body>'):html+inj;
+      fm.forEach(m=>{previewLines.push(`[${getDisplay(name)}]`,`  Selector: "${m.selector}"`,`  → Target: "${m.targetPage==='__end__'?'🏁 End':getDisplay(m.targetPage)}"`,``);});
+    }
+
+    const mockScript=generateMockScript(mocks[name]||[]);
+    if(mockScript) html=html.includes('</body>')?html.replace('</body>',mockScript+'</body>'):html+mockScript;
+    wiredFiles[name]=html;
+  });
+
+  const totalStripped=Object.values(stripReport).reduce((a,b)=>a+b,0);
+  document.getElementById('summaryGrid').innerHTML=`
+    <div class="summary-card"><div class="summary-num">${fileOrder.length}</div><div class="summary-label">HTML Pages</div></div>
+    <div class="summary-card"><div class="summary-num">${totalMap}</div><div class="summary-label">Button Wirings</div></div>
+    <div class="summary-card"><div class="summary-num" style="color:var(--green)">${totalStripped}</div><div class="summary-label">Session Scripts Stripped ✅</div></div>`;
+
+  buildFlowDiagram();
+
+  const stripLines=Object.entries(stripReport).map(([n,c])=>`  [${getDisplay(n)}] → ${c} script(s) stripped`).join('\n');
+  document.getElementById('outputBox').textContent=`⚡ STRIPPED:\n${stripLines}\n\n`+(previewLines.length?`🔗 WIRINGS:\n${previewLines.join('\n')}`:'No mappings — files served as-is.');
+  refreshRunInstructions();
+}
+
+function refreshRunInstructions() {
+  const el=document.getElementById('runInstructions'); if(!el)return;
+  const port=getPort(); const first=fileOrder[0]||'login.html';
+  el.innerHTML=`<strong>Step 1</strong> — Extract ZIP to a folder e.g.: <strong>D:\\rpa_flow\\</strong><br><br><strong>Step 2</strong> — Open CMD in that folder and run:<br>&nbsp;&nbsp;&nbsp;&nbsp;<strong>python -m http.server ${port}</strong><br><br><strong>Step 3</strong> — Point your RPA script to:<br>&nbsp;&nbsp;&nbsp;&nbsp;<strong>http://localhost:${port}/${first}</strong><br><br><strong>Step 4</strong> — When RPA hits a <strong>Sleep</strong> keyword, look for the <strong>⚡ RPA Mock Panel</strong> (bottom-right)<br><br><strong>Step 5</strong> — Select element state → RPA resumes → error code thrown ✅`;
+}
+
+function buildFlowDiagram() {
+  const chain=buildChain();
+  document.getElementById('flowDiagram').innerHTML=chain.map((n,i)=>
+    `<div class="flow-node" onclick="openPreviewFor('${n}')" title="Preview ${getDisplay(n)}">${getDisplay(n)}</div>${i<chain.length-1?'<span class="flow-arrow">→</span>':''}`
+  ).join('')+`<span class="flow-arrow">→</span><div class="flow-node" style="border-color:var(--green);color:var(--green);">🏁 End</div>`;
+}
+
+// ─── Mock Panel Script ────────────────────────────────────────────────────
+function generateMockScript(fileMocks) {
+  const data=JSON.stringify((fileMocks||[]).map(m=>({label:m.label||'Element',selector:m.selector,selectorType:m.selectorType||'xpath',errorCode:m.errorCode||'',defaultState:m.defaultState||'normal'})));
+  return `\n<!-- ⚡ RPA Mock Panel -->\n<script>\n(function(){\nvar MOCKS=${data};\nvar orig={};\nvar STATES=[{value:'normal',label:'✅ Normal'},{value:'notfound',label:'❌ Not Attached'},{value:'hidden',label:'👁 Not Visible'},{value:'wrongtag',label:'🏷 Not a Button'},{value:'disabled',label:'🚫 Not Enabled'},{value:'readonly',label:'🔒 Not Editable'}];\nvar S={bg:'#0d0f14',surface:'#13161e',border:'#242836',accent:'#00e5ff',yellow:'#ffd740',green:'#00e676',red:'#ff4f4f',muted:'#6b7280',text:'#e8eaf0',purple:'#7b61ff',mono:'JetBrains Mono,monospace'};\nfunction sxp(x){if(!x)return x;['parent','ancestor','ancestor-or-self','preceding','preceding-sibling','following','following-sibling','self'].forEach(function(a){x=x.replace(new RegExp('\\\\/\\\\/'+a+'::','g'),'/'+a+'::');});x=x.replace(/"([^"]*)"/g,function(m,i){return"'"+i+"'";});x=x.replace(/^\\$/,'');if(x.indexOf(' >> ')!==-1)x=x.split(' >> ').pop().trim();if(x.indexOf('xpath=')===0)x=x.substring(6);if(x.indexOf('css=')===0)x=x.substring(4);return x;}\nfunction gel(sel,type){try{if(!sel)return null;if(type==='xpath'){var r=document.evaluate(sxp(sel),document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null);return r.singleNodeValue;}return document.querySelector(sel);}catch(e){return null;}}\nfunction restoreEl(key){var sv=orig[key];if(!sv)return;var el=sv.e,ph=sv.ph;if(sv.d!==undefined)el.style.display=sv.d;if(sv.o!==undefined)el.style.opacity=sv.o;if(sv.pe!==undefined)el.style.pointerEvents=sv.pe;el.removeAttribute('disabled');el.removeAttribute('readonly');el.removeAttribute('aria-disabled');el.removeAttribute('aria-readonly');el.removeAttribute('data-rpa-mock');if(sv.oc!==undefined)el.onclick=sv.oc;if(sv.hr!==undefined){if(sv.hr)el.setAttribute('href',sv.hr);else el.removeAttribute('href');}if(ph&&ph.parentNode)ph.parentNode.replaceChild(el,ph);delete orig[key];}\nfunction applyState(key,sel,type,state){restoreEl(key);if(state==='normal'){showSt(key,'✅ Normal',S.green);saveSt(key,sel,type,state);return;}var el=gel(sel,type);if(!el){showSt(key,'⚠️ Not found',S.red);return;}var tag=el.tagName.toUpperCase();orig[key]={e:el,ph:null,d:el.style.display,o:el.style.opacity,pe:el.style.pointerEvents,oc:el.onclick,hr:el.getAttribute('href')};if(state==='notfound'){var ph=document.createComment('RPA_REMOVED:'+key);orig[key].ph=ph;el.parentNode.replaceChild(ph,el);showSt(key,'❌ Removed → NOT_ATTACHED',S.red);}else if(state==='hidden'){el.style.display='none';showSt(key,'👁 display:none → NOT_VISIBLE',S.yellow);}else if(state==='wrongtag'){var p=document.createElement('p');p.innerHTML=el.innerHTML;p.className=el.className;if(el.id)p.id=el.id;p.setAttribute('data-rpa-mock','wrongtag');p.style.cssText=el.style.cssText;orig[key].ph=p;el.parentNode.replaceChild(p,el);showSt(key,'🏷 Changed to <p> → NOT_A_BUTTON',S.muted);}else if(state==='disabled'){if(tag==='A'){el.setAttribute('aria-disabled','true');el.setAttribute('data-rpa-mock','disabled');el.removeAttribute('href');el.style.pointerEvents='none';el.style.opacity='0.4';el.onclick=function(e){e.preventDefault();return false;};showSt(key,'🚫 aria-disabled (A) → NOT_ENABLED',S.yellow);}else{el.setAttribute('disabled','disabled');el.style.opacity='0.4';showSt(key,'🚫 disabled ('+tag+') → NOT_ENABLED',S.yellow);}}else if(state==='readonly'){if(tag==='A'||tag==='BUTTON'){el.setAttribute('aria-readonly','true');el.setAttribute('data-rpa-mock','readonly');el.style.pointerEvents='none';el.style.opacity='0.5';showSt(key,'🔒 readonly ('+tag+') → NOT_EDITABLE',S.purple);}else{el.setAttribute('readonly','readonly');el.setAttribute('aria-readonly','true');showSt(key,'🔒 readonly ('+tag+') → NOT_EDITABLE',S.purple);}}\nsaveSt(key,sel,type,state);}\nvar SK='rpa_mocks_v1';\nfunction saveSt(key,sel,type,state){try{var a=loadSt();if(state==='normal')delete a[key];else a[key]={selector:sel,selectorType:type,state:state};localStorage.setItem(SK,JSON.stringify(a));}catch(e){}}\nfunction loadSt(){try{var r=localStorage.getItem(SK);return r?JSON.parse(r):{}}catch(e){return{};} }\nfunction clearSt(){try{localStorage.removeItem(SK);}catch(e){}}\nfunction autoApply(){var a=loadSt();Object.keys(a).forEach(function(k){var m=a[k];if(m.state&&m.state!=='normal')applyState(k,m.selector,m.selectorType,m.state);});}\nfunction showSt(key,msg,color){var el=document.getElementById('mock_st_'+key);if(el){el.textContent=msg;el.style.color=color;}if(key==='__dyn__'){var ds=document.getElementById('__dyn_st__');if(ds){ds.textContent=msg;ds.style.color=color;}}}\nfunction mkRow(m,key){var wrap=document.createElement('div');wrap.style.cssText='margin-bottom:10px;padding:10px;background:'+S.bg+';border-radius:8px;border:1px solid '+S.border;var opts=STATES.map(function(s){return'<option value="'+s.value+'"'+(s.value===(m.defaultState||'normal')?' selected':'')+'>'+s.label+'</option>';}).join('');wrap.innerHTML='<div style="font-weight:600;color:'+S.yellow+';margin-bottom:2px;">'+m.label+'</div>'+(m.errorCode?'<div style="color:'+S.muted+';font-size:10px;margin-bottom:6px;font-family:'+S.mono+';">'+m.errorCode+'</div>':'')+'<select id="mock_sel_'+key+'" onchange="__rpa_apply__(\''+key+'\',\''+m.selector+'\',\''+m.selectorType+'\',this.value)" style="width:100%;background:'+S.surface+';border:1px solid '+S.border+';color:'+S.text+';padding:6px 8px;border-radius:6px;font-family:'+S.mono+';font-size:12px;margin-bottom:4px;">'+opts+'</select><div id="mock_st_'+key+'" style="font-size:10px;color:'+S.muted+';min-height:14px;"></div>';return wrap;}\nfunction mkDyn(){var w=document.createElement('div');w.id='__dyn_s__';w.style.cssText='margin-top:12px;padding-top:12px;border-top:1px dashed '+S.border;var so=STATES.map(function(s){return'<option value="'+s.value+'">'+s.label+'</option>';}).join('');var saved=loadSt();var c=Object.keys(saved).length;w.innerHTML='<div style="font-weight:700;color:'+S.accent+';font-size:12px;margin-bottom:8px;">⚡ Dynamic Mock</div><input id="__dyn_inp__" type="text" placeholder="//a[text()=\'X\'] or #id" style="width:100%;background:'+S.bg+';border:1px solid '+S.border+';color:'+S.text+';padding:7px 8px;border-radius:6px;font-family:'+S.mono+';font-size:11px;outline:none;margin-bottom:6px;" /><div style="display:flex;gap:6px;margin-bottom:6px;"><button id="__dyn_xbtn__" onclick="__rpa_dtyp__(\'xpath\')" style="flex:1;padding:5px;border-radius:5px;border:1px solid '+S.accent+';background:'+S.accent+';color:#000;font-family:'+S.mono+';font-size:11px;cursor:pointer;font-weight:700;">XPath</button><button id="__dyn_cbtn__" onclick="__rpa_dtyp__(\'css\')" style="flex:1;padding:5px;border-radius:5px;border:1px solid '+S.border+';background:none;color:'+S.muted+';font-family:'+S.mono+';font-size:11px;cursor:pointer;">CSS/ID</button></div><select id="__dyn_state__" style="width:100%;background:'+S.bg+';border:1px solid '+S.border+';color:'+S.text+';padding:6px 8px;border-radius:6px;font-family:'+S.mono+';font-size:12px;margin-bottom:8px;">'+so+'</select><button onclick="__rpa_apply_dyn__()" style="width:100%;padding:8px;background:'+S.accent+';color:#000;border:none;border-radius:6px;font-family:'+S.mono+';font-size:12px;font-weight:700;cursor:pointer;margin-bottom:4px;">▶ Apply &amp; Save</button><button onclick="__rpa_reset_dyn__()" style="width:100%;padding:7px;background:none;color:'+S.muted+';border:1px solid '+S.border+';border-radius:6px;font-family:'+S.mono+';font-size:11px;cursor:pointer;margin-bottom:4px;">↺ Reset</button><button onclick="__rpa_clear__()" style="width:100%;padding:7px;background:none;color:'+S.red+';border:1px solid rgba(255,79,79,0.3);border-radius:6px;font-family:'+S.mono+';font-size:11px;cursor:pointer;margin-bottom:4px;">🗑 Clear All Mocks</button><div id="__dyn_st__" style="font-size:10px;color:'+S.muted+';min-height:14px;text-align:center;"></div><div id="__st_info__" style="font-size:10px;color:'+(c>0?S.green:S.muted)+';text-align:center;margin-top:6px;padding:4px;background:'+S.bg+';border-radius:4px;">'+(c>0?'💾 '+c+' mock(s) saved':'💾 No saved mocks')+'</div>';return w;}\nfunction buildPanel(){var p=document.createElement('div');p.id='__rpa_panel__';p.style.cssText='position:fixed;bottom:20px;right:20px;z-index:999999;background:'+S.surface+';border:1px solid '+S.border+';border-radius:14px;padding:16px;width:370px;font-family:'+S.mono+';font-size:12px;box-shadow:0 8px 40px rgba(0,0,0,0.7);color:'+S.text+';max-height:90vh;overflow-y:auto;';var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid '+S.border;hdr.innerHTML='<div><div style="font-weight:800;font-size:13px;color:'+S.accent+';">⚡ RPA Mock Panel</div><div style="font-size:10px;color:'+S.muted+';margin-top:2px;">Playwright-compatible · A &amp; BUTTON aware</div></div><button onclick="document.getElementById(\'__rpa_panel__\').style.display=\'none\'" style="background:none;border:none;color:'+S.muted+';cursor:pointer;font-size:16px;padding:0;">✕</button>';p.appendChild(hdr);if(MOCKS.length){var t=document.createElement('div');t.style.cssText='font-weight:700;color:'+S.yellow+';font-size:10px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;';t.textContent='Pre-configured Elements';p.appendChild(t);MOCKS.forEach(function(m,i){p.appendChild(mkRow(m,'pre_'+i));});}p.appendChild(mkDyn());document.body.appendChild(p);}\nvar dynType='xpath';\nwindow.__rpa_dtyp__=function(t){dynType=t;var x=document.getElementById('__dyn_xbtn__'),c=document.getElementById('__dyn_cbtn__');if(t==='xpath'){x.style.background=S.accent;x.style.color='#000';x.style.borderColor=S.accent;c.style.background='none';c.style.color=S.muted;c.style.borderColor=S.border;}else{c.style.background=S.accent;c.style.color='#000';c.style.borderColor=S.accent;x.style.background='none';x.style.color=S.muted;x.style.borderColor=S.border;}};\nwindow.__rpa_apply_dyn__=function(){var sel=document.getElementById('__dyn_inp__').value.trim();var state=document.getElementById('__dyn_state__').value;if(!sel){var st=document.getElementById('__dyn_st__');st.textContent='⚠️ Enter a selector';st.style.color=S.red;return;}applyState('__dyn__',sel,dynType,state);var saved=loadSt();var info=document.getElementById('__st_info__');if(info){var c=Object.keys(saved).length;info.textContent=c>0?'💾 '+c+' mock(s) saved':'💾 No saved mocks';info.style.color=c>0?S.green:S.muted;}};\nwindow.__rpa_reset_dyn__=function(){var sel=document.getElementById('__dyn_inp__').value.trim();if(sel)applyState('__dyn__',sel,dynType,'normal');};\nwindow.__rpa_apply__=function(key,sel,type,state){applyState(key,sel,type,state);};\nwindow.__rpa_clear__=function(){clearSt();Object.keys(orig).forEach(function(k){restoreEl(k);});var info=document.getElementById('__st_info__');if(info){info.textContent='💾 No saved mocks';info.style.color=S.muted;}};\nwindow.addEventListener('DOMContentLoaded',function(){MOCKS.forEach(function(m,i){if(m.defaultState&&m.defaultState!=='normal')applyState('pre_'+i,m.selector,m.selectorType,m.defaultState);});autoApply();buildPanel();});\n})();\n<\/script>`;
+}
+
+// ─── Live Preview ─────────────────────────────────────────────────────────
+function openPreview() {
+  if (!Object.keys(wiredFiles).length) { alert('Generate files first.'); return; }
+  buildBlobUrls();
+  currentPreviewFile = fileOrder[0];
+  renderPreviewTabs();
+  loadPreviewFile(currentPreviewFile);
+  document.getElementById('previewModal').classList.add('open');
+}
+
+function openPreviewFor(name) {
+  if (!wiredFiles[name]) return;
+  buildBlobUrls();
+  currentPreviewFile = name;
+  renderPreviewTabs();
+  loadPreviewFile(name);
+  document.getElementById('previewModal').classList.add('open');
+}
+
+function buildBlobUrls() {
+  Object.values(blobUrls).forEach(u => URL.revokeObjectURL(u));
+  blobUrls = {};
+  fileOrder.forEach(name => {
+    // Patch navigation to postMessage instead of real redirect
+    let html = wiredFiles[name].replace(
+      /window\.location\.href\s*=\s*'http:\/\/localhost:\d+\/([^']+)'\s*;/g,
+      (_, tgt) => `window.parent.postMessage({type:'rpa_nav',file:'${tgt}'},'*');`
+    );
+    blobUrls[name] = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  });
+}
+
+function renderPreviewTabs() {
+  document.getElementById('previewTabs').innerHTML = fileOrder.map(name =>
+    `<button class="preview-tab ${name===currentPreviewFile?'active':''}" onclick="switchPreview('${name}')">${getDisplay(name)}</button>`
+  ).join('');
+}
+
+function switchPreview(name) { currentPreviewFile = name; renderPreviewTabs(); loadPreviewFile(name); }
+function loadPreviewFile(name) { document.getElementById('previewFrame').src = blobUrls[name] || ''; }
+function closePreview() { document.getElementById('previewModal').classList.remove('open'); document.getElementById('previewFrame').src = ''; }
+
+window.addEventListener('message', e => {
+  if (e.data?.type === 'rpa_nav') {
+    const tgt = e.data.file;
+    if (blobUrls[tgt]) switchPreview(tgt);
+    else alert('🏁 End of flow reached!');
+  }
+});
+
+// ─── Config Export / Import ───────────────────────────────────────────────
+function exportConfig() {
+  if (!fileOrder.length) { alert('Upload files first.'); return; }
+  const cfg = { version: 2, files: fileOrder.map(n => ({ name: n, alias: uploadedFiles[n]?.alias||null })), mappings, mocks };
+  const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rpa_flow_config.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function importConfig(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const cfg = JSON.parse(e.target.result);
+      if (!cfg.version || !cfg.files) { alert('Invalid config file.'); return; }
+      // Restore aliases for loaded files
+      cfg.files.forEach(f => { if (uploadedFiles[f.name] && f.alias) uploadedFiles[f.name].alias = f.alias; });
+      // Restore file order for files that are uploaded
+      const orderedLoaded = cfg.files.map(f=>f.name).filter(n=>uploadedFiles[n]);
+      const extras = fileOrder.filter(n=>!orderedLoaded.includes(n));
+      fileOrder = [...orderedLoaded, ...extras];
+      if (cfg.mappings) mappings = cfg.mappings;
+      if (cfg.mocks) mocks = cfg.mocks;
+      renderFileList();
+      const mockCount = Object.values(cfg.mocks||{}).reduce((a,b)=>a+(b||[]).length,0);
+      alert(`✅ Config loaded!\n${orderedLoaded.length} pages matched · ${Object.keys(cfg.mappings||{}).length} wiring sets · ${mockCount} mocks restored.\n\nNote: HTML file contents must be re-uploaded if you refreshed the page.`);
+    } catch(err) { alert('Failed to parse config: ' + err.message); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ─── Download ─────────────────────────────────────────────────────────────
+async function downloadAll() {
+  const port = getPort();
+  const zip = new JSZip();
+  const folder = zip.folder('rpa_flow');
+  Object.entries(wiredFiles).forEach(([name, content]) => folder.file(name, content));
+  folder.file('README.txt', `RPA Flow - Wired HTML Pages\n===========================\nGenerated by RPA Flow Wiring Tool\n\nHOW TO RUN:\n1. Open CMD in this folder\n2. python -m http.server ${port}\n3. Browser: http://localhost:${port}/\n\nFILES:\n${fileOrder.map(n=>'  - '+n).join('\n')}\n\nROBOT FRAMEWORK:\n  Open Browser    http://localhost:${port}/${fileOrder[0]||'login.html'}    chrome\n`);
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'rpa_flow_wired.zip'; a.click();
+}
+
+// ─── Auto-Suggest Engine ─────────────────────────────────────────────────
+// Parses a file's HTML and extracts interactive elements with CSS + XPath selectors
+
+const parsedElements = {}; // filename → [{ tag, id, classes, text, css, xpath, type }]
+let activeSuggestTab = {};   // key → 'all'|'button'|'a'|'input'|'select'
+
+function parseFileElements(filename) {
+  if (parsedElements[filename]) return parsedElements[filename]; // cached
+  const content = uploadedFiles[filename]?.content;
+  if (!content) return [];
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(content, 'text/html');
+
+  const SELECTORS = 'button, a[href], a[id], a[class], input, select, textarea, [onclick], [role="button"], [role="link"], [role="tab"], [role="menuitem"]';
+  const nodes = Array.from(doc.querySelectorAll(SELECTORS));
+
+  const seen = new Set();
+  const results = [];
+
+  nodes.forEach(el => {
+    const tag = el.tagName.toLowerCase();
+    const id = el.id || '';
+    const classes = Array.from(el.classList).filter(c => c.length > 0 && c.length < 40);
+    const text = (el.textContent || el.value || el.placeholder || el.getAttribute('aria-label') || '').trim().replace(/\s+/g,' ').substring(0, 60);
+    const type = el.getAttribute('type') || '';
+    const name = el.getAttribute('name') || '';
+    const role = el.getAttribute('role') || '';
+
+    // Build best CSS selector
+    let css = tag;
+    if (id) {
+      css = `#${id}`;
+    } else if (classes.length) {
+      // Prefer specific class combos
+      css = tag + '.' + classes.slice(0, 2).join('.');
+    } else if (type) {
+      css = `${tag}[type="${type}"]`;
+    } else if (name) {
+      css = `${tag}[name="${name}"]`;
+    } else if (text && text.length < 40 && (tag === 'button' || tag === 'a')) {
+      css = tag; // will use text-based XPath instead
+    }
+
+    // Build XPath
+    let xpath = '';
+    if (id) {
+      xpath = `//${tag}[@id='${id}']`;
+    } else if (text && (tag === 'button' || tag === 'a' || tag === 'input')) {
+      const trimmed = text.substring(0, 40);
+      if (tag === 'input') {
+        xpath = type ? `//${tag}[@type='${type}']` : `//${tag}`;
+        if (el.getAttribute('placeholder')) xpath = `//${tag}[@placeholder='${el.getAttribute('placeholder').substring(0,40)}']`;
+      } else {
+        xpath = `//${tag}[normalize-space()='${trimmed}']`;
+      }
+    } else if (classes.length) {
+      xpath = `//${tag}[contains(@class,'${classes[0]}')]`;
+    } else {
+      xpath = `//${tag}`;
+    }
+
+    // Deduplicate by css selector
+    const dedupeKey = css + '|' + xpath;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+
+    // Determine icon type
+    let iconType = 'other';
+    if (tag === 'button' || role === 'button') iconType = 'btn';
+    else if (tag === 'a') iconType = 'a';
+    else if (tag === 'input' || tag === 'textarea') iconType = 'inp';
+    else if (tag === 'select') iconType = 'sel';
+
+    results.push({ tag, id, classes, text, css, xpath, type, name, role, iconType });
+  });
+
+  parsedElements[filename] = results;
+  return results;
+}
+
+function getIconClass(iconType) {
+  return { btn:'si-btn', a:'si-a', inp:'si-inp', sel:'si-sel', other:'si-other' }[iconType] || 'si-other';
+}
+function getIconLabel(iconType) {
+  return { btn:'BTN', a:'A', inp:'INP', sel:'SEL', other:'EL' }[iconType] || 'EL';
+}
+
+function buildSuggestItems(filename, filter, tabFilter, selectorType) {
+  let items = parseFileElements(filename);
+
+  // Tab filter
+  if (tabFilter && tabFilter !== 'all') {
+    items = items.filter(el => {
+      if (tabFilter === 'button') return el.tag === 'button' || el.role === 'button';
+      if (tabFilter === 'a') return el.tag === 'a';
+      if (tabFilter === 'input') return el.tag === 'input' || el.tag === 'textarea' || el.tag === 'select';
+      return true;
+    });
+  }
+
+  // Search filter
+  if (filter) {
+    const q = filter.toLowerCase();
+    items = items.filter(el =>
+      el.css.toLowerCase().includes(q) ||
+      el.xpath.toLowerCase().includes(q) ||
+      el.text.toLowerCase().includes(q) ||
+      el.id.toLowerCase().includes(q) ||
+      el.classes.some(c => c.toLowerCase().includes(q))
+    );
+  }
+
+  return items;
+}
+
+function renderSuggestItems(items, filename, index, selectorType, prefix) {
+  if (!items.length) return `<div class="suggest-empty">No matching elements found</div>`;
+
+  return items.map((el, idx) => {
+    const selector = selectorType === 'xpath' ? el.xpath : el.css;
+    const secondary = selectorType === 'xpath' ? el.css : el.xpath;
+    const secLabel = selectorType === 'xpath' ? 'CSS' : 'XPath';
+    const tagClass = selectorType === 'xpath' ? 'st-xpath' : 'st-css';
+
+    // Store selector safely in a global map keyed by a simple index, avoiding inline string escaping issues
+    const storeKey = `__sug_${prefix}_${s(filename)}_${index}_${idx}`;
+    window[storeKey] = { filename, index, selector, selectorType, prefix };
+
+    return `<div class="suggest-item" onclick="applySuggestKey('${storeKey}')">
+      <div class="suggest-item-icon ${getIconClass(el.iconType)}">${getIconLabel(el.iconType)}</div>
+      <div class="suggest-item-body">
+        <div class="suggest-item-selector">${esc(selector)}</div>
+        <div class="suggest-item-meta">${el.text ? `"${esc(el.text)}"` : el.tag.toUpperCase()}</div>
+        <div class="suggest-item-xpath">${secLabel}: ${esc(secondary)}</div>
+      </div>
+      <span class="suggest-item-tag ${tagClass}">${selectorType === 'xpath' ? 'XPath' : 'CSS'}</span>
+    </div>`;
+  }).join('');
+}
+
+function applySuggestKey(storeKey) {
+  const d = window[storeKey];
+  if (!d) return;
+  if (d.prefix === 'mock') pickMockSuggest(d.filename, d.index, d.selector, d.selectorType);
+  else pickSuggest(d.filename, d.index, d.selector, d.selectorType);
+}
+
+// ── Wiring suggest ──
+function openSuggest(filename, i) {
+  const drop = document.getElementById(`sugdrop_${s(filename)}_${i}`);
+  if (!drop) return;
+
+  const isOpen = drop.classList.contains('open');
+  // Close all other open dropdowns
+  document.querySelectorAll('.suggest-dropdown.open').forEach(d => d.classList.remove('open'));
+  if (isOpen) return; // toggle off
+
+  const selectorType = mappings[filename]?.[i]?.selectorType || 'css';
+  const key = `${filename}_${i}`;
+  activeSuggestTab[key] = activeSuggestTab[key] || 'all';
+  const items = buildSuggestItems(filename, '', activeSuggestTab[key], selectorType);
+  const list  = document.getElementById(`suglist_${s(filename)}_${i}`);
+  const count = document.getElementById(`sugcount_${s(filename)}_${i}`);
+  if (list)  list.innerHTML  = renderSuggestItems(items, filename, i, selectorType, 'wire');
+  if (count) count.innerHTML = `<span class="suggest-count">${items.length}</span> elements found in ${filename}`;
+  drop.classList.add('open');
+  setTimeout(() => document.getElementById(`sugsearch_${s(filename)}_${i}`)?.focus(), 60);
+}
+
+function closeSuggest(filename, i) {
+  document.getElementById(`sugdrop_${s(filename)}_${i}`)?.classList.remove('open');
+}
+
+function filterSuggest(filename, i, val) {
+  const selectorType = mappings[filename]?.[i]?.selectorType || 'css';
+  const key = `${filename}_${i}`;
+  const items = buildSuggestItems(filename, val, activeSuggestTab[key] || 'all', selectorType);
+  const list = document.getElementById(`suglist_${s(filename)}_${i}`);
+  const count = document.getElementById(`sugcount_${s(filename)}_${i}`);
+  if (list) list.innerHTML = renderSuggestItems(items, filename, i, selectorType, 'wire');
+  if (count) count.innerHTML = `<span class="suggest-count">${items.length}</span> elements found`;
+}
+
+function setSuggestTab(filename, i, tab, btn) {
+  const key = `${filename}_${i}`;
+  activeSuggestTab[key] = tab;
+  // Update tab active state
+  btn.closest('.suggest-tabs')?.querySelectorAll('.suggest-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  filterSuggest(filename, i, document.getElementById(`sugsearch_${s(filename)}_${i}`)?.value || '');
+}
+
+function pickSuggest(filename, i, selector, selectorType) {
+  // Update data
+  if (!mappings[filename]) mappings[filename] = [];
+  if (!mappings[filename][i]) mappings[filename][i] = {};
+  mappings[filename][i].selector = selector;
+  mappings[filename][i].selectorType = selectorType;
+  // Update input directly without full re-render to keep dropdown context
+  const inp = document.getElementById(`selinp_${s(filename)}_${i}`);
+  if (inp) inp.value = selector;
+  updateMiniFlow();
+  closeSuggest(filename, i);
+}
+
+// ── Mock suggest ──
+const activeMockSuggestTab = {};
+
+function openMockSuggest(filename, i) {
+  const drop = document.getElementById(`msugdrop_${s(filename)}_${i}`);
+  if (!drop) return;
+
+  const isOpen = drop.classList.contains('open');
+  document.querySelectorAll('.suggest-dropdown.open').forEach(d => d.classList.remove('open'));
+  if (isOpen) return;
+
+  const selectorType = mocks[filename]?.[i]?.selectorType || 'xpath';
+  const key = `mock_${filename}_${i}`;
+  activeMockSuggestTab[key] = activeMockSuggestTab[key] || 'all';
+  const items = buildSuggestItems(filename, '', activeMockSuggestTab[key], selectorType);
+  const list  = document.getElementById(`msuglist_${s(filename)}_${i}`);
+  const count = document.getElementById(`msugcount_${s(filename)}_${i}`);
+  if (list)  list.innerHTML  = renderSuggestItems(items, filename, i, selectorType, 'mock');
+  if (count) count.innerHTML = `<span class="suggest-count">${items.length}</span> elements found in ${filename}`;
+  drop.classList.add('open');
+  setTimeout(() => document.getElementById(`msugsearch_${s(filename)}_${i}`)?.focus(), 60);
+}
+
+function closeMockSuggest(filename, i) {
+  document.getElementById(`msugdrop_${s(filename)}_${i}`)?.classList.remove('open');
+}
+
+function filterMockSuggest(filename, i, val) {
+  const selectorType = mocks[filename]?.[i]?.selectorType || 'xpath';
+  const key = `mock_${filename}_${i}`;
+  const items = buildSuggestItems(filename, val, activeMockSuggestTab[key] || 'all', selectorType);
+  const list = document.getElementById(`msuglist_${s(filename)}_${i}`);
+  const count = document.getElementById(`msugcount_${s(filename)}_${i}`);
+  if (list) list.innerHTML = renderSuggestItems(items, filename, i, selectorType, 'mock');
+  if (count) count.innerHTML = `<span class="suggest-count">${items.length}</span> elements found`;
+}
+
+function setMockSuggestTab(filename, i, tab, btn) {
+  const key = `mock_${filename}_${i}`;
+  activeMockSuggestTab[key] = tab;
+  btn.closest('.suggest-tabs')?.querySelectorAll('.suggest-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  filterMockSuggest(filename, i, document.getElementById(`msugsearch_${s(filename)}_${i}`)?.value || '');
+}
+
+function pickMockSuggest(filename, i, selector, selectorType) {
+  if (!mocks[filename]) mocks[filename] = [];
+  if (!mocks[filename][i]) mocks[filename][i] = {};
+  mocks[filename][i].selector = selector;
+  mocks[filename][i].selectorType = selectorType;
+  const inp = document.getElementById(`mselinp_${s(filename)}_${i}`);
+  if (inp) inp.value = selector;
+  closeMockSuggest(filename, i);
+}
+
+// Clear parse cache when files change
+const _origHandleFiles = handleFiles;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+// Global outside-click handler for all suggest dropdowns (mousedown fires before click, no bubbling issue)
+document.addEventListener('mousedown', function(e) {
+  if (!e.target.closest('.suggest-dropdown') && !e.target.classList.contains('sel-suggest-btn')) {
+    document.querySelectorAll('.suggest-dropdown.open').forEach(d => d.classList.remove('open'));
+  }
+});
+function s(name)   { return name.replace(/[^a-zA-Z0-9]/g,'_'); }
+function esc(str)  { return (str||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+</script>
+</body>
+</html>
